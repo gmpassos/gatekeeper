@@ -1,6 +1,5 @@
 import 'package:gatekeeper/gatekeeper_client.dart';
 import 'package:gatekeeper/gatekeeper_server.dart';
-import 'package:gatekeeper/src/gatekeeper_mock.dart';
 import 'package:test/test.dart';
 
 const accessKey = '0123456789abcdefghijklmnopqrstuvwxyz';
