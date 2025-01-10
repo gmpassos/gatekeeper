@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -44,6 +45,14 @@ class GatekeeperServer {
     }
   }
 
+  late final Zone _zoneGuarded;
+
+  static void _onUncaughtError(Zone self, ZoneDelegate parent, Zone zone,
+      Object error, StackTrace stackTrace) {
+    print('[ERROR]: $error');
+    print(stackTrace);
+  }
+
   ServerSocket? _server;
 
   /// A flag indicating whether the server has started and is listening for connections.
@@ -58,15 +67,26 @@ class GatekeeperServer {
   Future<bool> start() async {
     if (isStarted) return false;
 
-    var server = _server = await ServerSocket.bind(address, listenPort);
+    _zoneGuarded = Zone.current.fork(
+        specification:
+            ZoneSpecification(handleUncaughtError: _onUncaughtError));
 
-    server.listen(_onAcceptSocket);
+    var started = await _zoneGuarded.run(_startImpl);
+    if (!started) {
+      throw StateError("Can't start `GatekeeperServer`");
+    }
 
     var ok = await gatekeeper.resolve();
     if (!ok) {
       throw StateError("Can't resolve `Gatekeeper`");
     }
 
+    return true;
+  }
+
+  Future<bool> _startImpl() async {
+    var server = _server = await ServerSocket.bind(address, listenPort);
+    server.listen(_onAcceptSocket);
     return true;
   }
 
@@ -205,7 +225,12 @@ class _SocketHandler {
       close();
     } else if (processed) {
       _removeData(idxNewLine + 1);
-      print('-- Processed: $cmd $args');
+
+      if (cmd == 'login') {
+        print('-- [${socket.remoteAddress.address}] LOGIN');
+      } else {
+        print('-- [${socket.remoteAddress.address}] Processed: $cmd $args');
+      }
     }
   }
 
@@ -283,6 +308,13 @@ class _SocketHandler {
             close();
             return null;
           }
+        }
+
+      case 'disconnect':
+        {
+          socket.writeln("disconnect: true");
+          socket.close();
+          return true;
         }
 
       default:
