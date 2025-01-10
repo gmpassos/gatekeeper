@@ -35,9 +35,15 @@ void main(List<String> argsOrig) async {
 
   var allowAllPorts = args.flagOr('allow-all-ports', false) ?? false;
 
-  final driver = GatekeeperIpTables();
+  var mock = args.flagOr('mock', false) ?? false;
+
+  final driver = mock ? GatekeeperMock({}) : GatekeeperIpTables();
+
   final gatekeeper = Gatekeeper(
-      driver: driver, allowedPorts: allowedPorts, allowAllPorts: allowAllPorts);
+    driver: driver,
+    allowedPorts: allowedPorts,
+    allowAllPorts: allowAllPorts,
+  );
 
   final server = GatekeeperServer(
     gatekeeper,
