@@ -63,4 +63,7 @@ class GatekeeperMock extends GatekeeperDriver {
 
   @override
   Future<bool> resolve() async => true;
+
+  @override
+  String toString() => 'GatekeeperMock{blockedPorts: $blockedPorts}';
 }
