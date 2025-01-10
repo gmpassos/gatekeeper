@@ -42,7 +42,7 @@ void main(List<String> argsOrig) async {
   while (client.isConnected) {
     stdout.write('> ');
     var cmd = stdin.readLineSync()?.trim();
-    client.processCommand(cmd);
+    await client.processCommand(cmd);
   }
 
   print('By!');
