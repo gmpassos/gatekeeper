@@ -166,6 +166,13 @@ class GatekeeperClient {
     return response?.contains('true') ?? false;
   }
 
+  /// Send a disconnect command, remotely closing the [Socket].
+  /// Used by `exit` command. See [processCommand].
+  Future<bool> disconnect() async {
+    var response = await _sendCommand("disconnect socket");
+    return response?.contains('true') ?? false;
+  }
+
   /// Processes a command entered by the user.
   ///
   /// - [command]: The command line to execute.
@@ -182,6 +189,8 @@ class GatekeeperClient {
     var cmd = parts[0].trim().toLowerCase();
 
     switch (cmd) {
+      case 'l':
+      case 'ls':
       case 'list':
         {
           var ports = await listBlockedTCPPorts();
@@ -202,8 +211,30 @@ class GatekeeperClient {
           return true;
         }
 
+      case 'unblock':
+        {
+          var port = int.tryParse(parts[1].trim());
+          if (port == null || port < 10) {
+            print('** Invalid port: $port');
+            return false;
+          }
+
+          var blocked = await unblockTCPPort(port);
+          print('-- Unblocked $port: $blocked');
+          return true;
+        }
+
+      case 'exit':
+        {
+          var ok = await disconnect();
+          print('-- Disconnect: $ok');
+          print('[EXIT] By!');
+          exit(0);
+        }
+
       default:
         {
+          print('** Unknown command: `$cmd`');
           return false;
         }
     }
