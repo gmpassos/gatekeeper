@@ -217,6 +217,23 @@ abstract class GatekeeperDriver {
   Future<Set<(String, int)>> listAcceptedAddressesOnTCPPorts(
       {bool sudo = false, Set<int>? allowedPorts});
 
+  /// Checks whether a specific [address] is accepted on a TCP [port].
+  /// See also: [listAcceptedAddressesOnTCPPorts].
+  ///
+  /// - [address]: The address to check.
+  /// - [port]: The TCP port to check.
+  /// - [sudo]: Whether sudo privileges should be used. Defaults to `false`.
+  /// - [allowedPorts]: A set of allowed ports, or `null` to allow all ports.
+  ///
+  /// Returns a [Future] that completes with `true` if the port is accepted, or `false` if it is not.
+  Future<bool> isAcceptedAddressOnPort(String address, int port,
+      {bool sudo = false, Set<int>? allowedPorts}) async {
+    var accepts = await listAcceptedAddressesOnTCPPorts(
+        sudo: sudo, allowedPorts: allowedPorts);
+    var accepted = accepts.contains((address, port));
+    return accepted;
+  }
+
   /// Add rule to accept connections on a specified TCP [port] from the given [address].
   ///
   /// - [address]: The address (IP or hostname) to accept connections from.
