@@ -166,6 +166,63 @@ class GatekeeperClient {
     return response?.contains('true') ?? false;
   }
 
+  /// Lists the accepted addresses on TCP ports.
+  ///
+  /// Returns a [Future] that completes with a [Set] of `({String address, int port}` entries.
+  Future<Set<({String address, int port})>>
+      listAcceptedAddressesOnTCPPorts() async {
+    var response = await _sendCommand("list accepts");
+    if (response == null) return {};
+
+    var entries = response
+        .trim()
+        .split(RegExp(r';'))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .map((e) {
+          var parts = e.split(':');
+          if (parts.length != 2) return null;
+          var a = parts[0];
+          var p = int.tryParse(parts[1]);
+          if (p == null) return null;
+          return (address: a, port: p);
+        })
+        .nonNulls
+        .toSet();
+
+    return entries;
+  }
+
+  /// Adds a rule to accept a TCP connection from a specified [address] to the blocked [port].
+  ///
+  /// Parameters:
+  /// - [address]: The IP address or hostname to accept connections from.
+  /// - [port]: The port number to allow access to.
+  ///
+  /// Returns:
+  /// A [Future<bool>] that resolves to `true` if successful, or `false` if the
+  /// rule could not be added.
+  Future<bool> acceptAddressOnTCPPort(String address, int port) async {
+    address = address.trim();
+    if (address.isEmpty) return false;
+    var response = await _sendCommand("accept $address $port");
+    return response?.contains('true') ?? false;
+  }
+
+  /// Reverses the acceptance ("unaccept") of an [address] on a specified TCP [port].
+  ///
+  /// - [address]: The IP address or hostname to unaccept.
+  /// - [port]: The TCP port from which the address will be unaccepted. If `null` will remove from all ports.
+  ///
+  /// Returns:
+  /// - A `Future<bool>` indicating whether the operation was successful.
+  Future<bool> unacceptAddressOnTCPPort(String address, int? port) async {
+    address = address.trim();
+    if (address.isEmpty) return false;
+    var response = await _sendCommand("unaccept $address $port");
+    return response?.contains('true') ?? false;
+  }
+
   /// Send a disconnect command, remotely closing the [Socket].
   /// Used by `exit` command. See [processCommand].
   Future<bool> disconnect() async {
@@ -184,7 +241,7 @@ class GatekeeperClient {
     command = command.trim();
     if (command.isEmpty) return false;
 
-    var parts = command.split(' ');
+    var parts = command.split(RegExp(r'\s+'));
 
     var cmd = parts[0].trim().toLowerCase();
 
@@ -193,9 +250,48 @@ class GatekeeperClient {
       case 'ls':
       case 'list':
         {
-          var ports = await listBlockedTCPPorts();
-          print('-- Blocked ports: $ports');
-          return true;
+          var type = parts.length > 1 ? parts[1].trim().toLowerCase() : 'all';
+
+          switch (type) {
+            case 'port':
+            case 'ports':
+            case 'block':
+            case 'blocks':
+            case 'blocked':
+              {
+                var ports = await listBlockedTCPPorts();
+                print('-- Blocked ports: $ports');
+                return true;
+              }
+
+            case 'address':
+            case 'addresses':
+            case 'accept':
+            case 'accepts':
+            case 'accepted':
+              {
+                var accepts = await listAcceptedAddressesOnTCPPorts();
+                print('-- Accepted addresses: $accepts');
+                return true;
+              }
+
+            case 'all':
+              {
+                var ports = await listBlockedTCPPorts();
+                print('-- Blocked ports: $ports');
+
+                var accepts = await listAcceptedAddressesOnTCPPorts();
+                print('-- Accepted addresses: $accepts');
+
+                return true;
+              }
+
+            default:
+              {
+                print('** Unknown list type: $type');
+                return false;
+              }
+          }
         }
 
       case 'block':
@@ -221,6 +317,41 @@ class GatekeeperClient {
 
           var blocked = await unblockTCPPort(port);
           print('-- Unblocked $port: $blocked');
+          return true;
+        }
+
+      case 'accept':
+        {
+          var address = parts[1].trim();
+          if (address.isEmpty) {
+            print('** Empty address');
+            return false;
+          }
+
+          var port = int.tryParse(parts[2].trim());
+          if (port == null || port < 10) {
+            print('** Invalid port: $port');
+            return false;
+          }
+
+          var accepted = await acceptAddressOnTCPPort(address, port);
+          print('-- Accepted address `$address` on port $port: $accepted');
+          return true;
+        }
+
+      case 'unaccept':
+        {
+          var address = parts[1].trim();
+          if (address.isEmpty) {
+            print('** Empty address');
+            return false;
+          }
+
+          var port = parts.length > 2 ? int.tryParse(parts[2].trim()) : null;
+
+          var unaccepted = await unacceptAddressOnTCPPort(address, port);
+          print(
+              '-- Unaccepted address `$address` on port ${port ?? '*'}: $unaccepted');
           return true;
         }
 

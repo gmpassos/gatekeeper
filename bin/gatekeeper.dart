@@ -37,7 +37,11 @@ void main(List<String> argsOrig) async {
 
   var mock = args.flagOr('mock', false) ?? false;
 
-  final driver = mock ? GatekeeperMock({}) : GatekeeperIpTables();
+  var verbose = args.flagOr('verbose', false) ?? false;
+
+  final driver = mock
+      ? GatekeeperMock(verbose: verbose)
+      : GatekeeperIpTables(verbose: verbose);
 
   final gatekeeper = Gatekeeper(
     driver: driver,
