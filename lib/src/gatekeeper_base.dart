@@ -71,6 +71,41 @@ class Gatekeeper {
         allowedPorts: allowedPorts, allowAllPorts: allowAllPorts);
   }
 
+  /// Lists all the currently accepted addresses on TCP ports.
+  ///
+  /// Returns a [Future] that completes with a [Set] of `({String address, in port})` entries.
+  Future<Set<({String address, int port})>>
+      listAcceptedAddressesOnTCPPorts() async {
+    var set = await driver.listAcceptedAddressesOnTCPPorts(
+        sudo: sudo, allowedPorts: allowedPorts);
+    var set2 = set.map((e) => (address: e.$1, port: e.$2)).toSet();
+    return set2;
+  }
+
+  /// Add rule to accept connections on a specified TCP [port] from the given [address].
+  ///
+  /// - [address]: The address (IP or hostname) to accept connections from.
+  /// - [port]: The TCP port number to accept connections on.
+  ///
+  /// Returns a [Future] that completes with `true` if the operation succeeded,
+  /// or `false` if it failed.
+  Future<bool> acceptAddressOnTCPPort(String address, int port) async {
+    return driver.acceptAddressOnTCPPort(address, port,
+        allowedPorts: allowedPorts, allowAllPorts: allowAllPorts);
+  }
+
+  /// Reverses the acceptance ("unaccept") of an [address] on a specified TCP [port].
+  ///
+  /// - [address]: The IP address or hostname to unaccept.
+  /// - [port]: The TCP port from which the address will be unaccepted. If `null` will remove from all ports.
+  ///
+  /// Returns:
+  /// - A `Future<bool>` indicating whether the operation was successful.
+  Future<bool> unacceptAddressOnTCPPort(String address, int? port) async {
+    return driver.unacceptAddressOnTCPPort(address, port,
+        allowedPorts: allowedPorts, allowAllPorts: allowAllPorts);
+  }
+
   /// Resolves the [Gatekeeper] [driver].
   ///
   /// Returns a [Future] that completes with a [bool] indicating success or failure.
@@ -172,6 +207,51 @@ abstract class GatekeeperDriver {
     var blocked = blockedPorts.contains(port);
     return blocked;
   }
+
+  /// Lists all the currently accepted addresses on TCP ports.
+  ///
+  /// - [sudo]: A flag indicating if sudo privileges should be used. Defaults to `false`.
+  /// - [allowedPorts]: A set of allowed ports, or `null` to allow all ports.
+  ///
+  /// Returns a [Future] that completes with a [Set] of `(address,port)` entries.
+  Future<Set<(String, int)>> listAcceptedAddressesOnTCPPorts(
+      {bool sudo = false, Set<int>? allowedPorts});
+
+  /// Add rule to accept connections on a specified TCP [port] from the given [address].
+  ///
+  /// - [address]: The address (IP or hostname) to accept connections from.
+  /// - [port]: The TCP port number to accept connections on.
+  /// - [sudo]: Whether elevated permissions are required to configure the port (default: `false`).
+  /// - [allowedPorts]: A set of allowed ports for validation. If `null`, validation is skipped.
+  /// - [allowAllPorts]: Whether to allow connections on all ports, overriding `allowedPorts`.
+  ///
+  /// Returns a [Future] that completes with `true` if the operation succeeded,
+  /// or `false` if it failed.
+  Future<bool> acceptAddressOnTCPPort(String address, int port,
+      {bool sudo = false,
+      required Set<int>? allowedPorts,
+      required bool allowAllPorts});
+
+  /// Reverses the acceptance ("unaccept") of an [address] on a specified TCP [port].
+  ///
+  /// This method is used to revoke a previously accepted address on a given
+  /// TCP port. Optionally, it can be executed with elevated privileges using `sudo`.
+  ///
+  /// - [address]: The IP address or hostname to unaccept.
+  /// - [port]: The TCP port from which the address will be unaccepted. If `null` will remove from all ports.
+  /// - [sudo]: Indicates whether the operation should be executed with sudo
+  ///   privileges. Defaults to `false`.
+  /// - [allowedPorts]: A set of ports that are allowed for this operation. If `null`,
+  ///   no port restrictions apply.
+  /// - [allowAllPorts]: A flag to override `allowedPorts` and allow all ports to
+  ///   be unaccepted.
+  ///
+  /// Returns:
+  /// - A `Future<bool>` indicating whether the operation was successful.
+  Future<bool> unacceptAddressOnTCPPort(String address, int? port,
+      {bool sudo = false,
+      required Set<int>? allowedPorts,
+      required bool allowAllPorts});
 
   /// Resolves this [GatekeeperDriver] instance to ensure that it can be used in this system.
   ///
