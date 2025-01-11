@@ -9,7 +9,7 @@ void main() {
     test('allowedPorts: {2223, 2224} ; GatekeeperClient', () async {
       final listenPort = 2243;
 
-      final driver = GatekeeperMock({});
+      final driver = GatekeeperMock();
 
       final gatekeeperServer = GatekeeperServer(
           Gatekeeper(driver: driver, allowedPorts: {2223, 2224}),
@@ -56,6 +56,17 @@ void main() {
 
       expect(await client.unblockTCPPort(2223), isTrue);
       expect(await client.listBlockedTCPPorts(), equals(<int>{2224}));
+
+      expect(
+          await client.acceptAddressOnTCPPort('192.168.0.100', 2224), isTrue);
+
+      expect(
+          await client.listAcceptedAddressesOnTCPPorts(),
+          equals(<({String address, int port})>{
+            (address: '192.168.0.100', port: 2224),
+          }));
+
+      (await client.unacceptAddressOnTCPPort('192.168.0.100', 2224), isTrue);
 
       expect(await client.unblockTCPPort(2224), isTrue);
       expect(await client.listBlockedTCPPorts(), equals(<int>{}));

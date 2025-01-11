@@ -6,7 +6,7 @@ void main() {
   group('Gatekeeper', () {
     test('allowAllPorts: true', () async {
       var gatekeeper =
-          Gatekeeper(driver: GatekeeperMock({}), allowAllPorts: true);
+          Gatekeeper(driver: GatekeeperMock(), allowAllPorts: true);
 
       expect(await gatekeeper.listBlockedTCPPorts(), equals(<int>{}));
 
@@ -25,7 +25,7 @@ void main() {
 
     test('allowAllPorts: false', () async {
       var gatekeeper =
-          Gatekeeper(driver: GatekeeperMock({}), allowAllPorts: false);
+          Gatekeeper(driver: GatekeeperMock(), allowAllPorts: false);
 
       expect(await gatekeeper.listBlockedTCPPorts(), equals(<int>{}));
 
@@ -38,7 +38,7 @@ void main() {
 
     test('allowAllPorts: false ; allowedPorts: {2223, 2224}', () async {
       var gatekeeper = Gatekeeper(
-          driver: GatekeeperMock({}),
+          driver: GatekeeperMock(),
           allowAllPorts: false,
           allowedPorts: {2223, 2224});
 
