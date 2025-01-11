@@ -1,3 +1,13 @@
+## 1.0.3
+
+- `GatekeeperServer`, `GatekeeperClient`:
+  - `login`: use `hashAccessKey`.
+
+- collection: ^1.19.1
+- crypto: ^3.0.6
+
+- dependency_validator: ^5.0.2
+
 ## 1.0.2
 
 - `Gatekeeper`, `GatekeeperDriver`, `GatekeeperClient`, `GatekeeperMock`, `GatekeeperIpTables`:
