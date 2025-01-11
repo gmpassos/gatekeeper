@@ -3,6 +3,9 @@
 - `GatekeeperServer`, `GatekeeperClient`:
   - `login`: use `hashAccessKey`.
 
+- `GatekeeperIpTables`:
+  - `unacceptAddressOnTCPPort`: fix for all ports.
+
 - collection: ^1.19.1
 - crypto: ^3.0.6
 
