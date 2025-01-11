@@ -198,7 +198,7 @@ class GatekeeperIpTables extends GatekeeperDriver {
 
     if (output == null || output.isEmpty) return {};
 
-    final regExpAddress = RegExp(r'tcp\s+--\s+(\S+)');
+    final regExpAddress = RegExp(r'tcp\s+--\s+\*\s+\*\s+(\S+)');
     final regExpPort = RegExp(r'dpt:(\d\d+)');
 
     final accepts = <(String, int)>{};
