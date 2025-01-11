@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart';
 
 extension Uint8ListExtension on Uint8List {
   Uint8List merge(Uint8List other) {
@@ -9,4 +12,15 @@ extension Uint8ListExtension on Uint8List {
     bs.setRange(length, length + other.length, other);
     return bs;
   }
+}
+
+Uint8List hashAccessKey(String accessKey) {
+  var bytes = sha512.convert([
+    ...latin1.encode('GateKeeper.accessKey:'),
+    ...latin1.encode(accessKey),
+  ]).bytes;
+
+  var bytes2 = sha512.convert(bytes).bytes;
+
+  return Uint8List.fromList(bytes2);
 }

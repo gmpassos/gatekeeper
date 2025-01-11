@@ -117,7 +117,10 @@ class GatekeeperClient {
   /// Returns a [Future] that completes with `true` if login was successful,
   /// or `false` if it failed.
   Future<bool> login(String accessKey) async {
-    var response = await _sendCommand("login $accessKey");
+    var accessKeyHash = hashAccessKey(accessKey);
+    var accessKeyBase64 = base64.encode(accessKeyHash);
+
+    var response = await _sendCommand("login $accessKeyBase64");
     var logged = response?.contains('true') ?? false;
     if (logged) {
       _logged = true;

@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:collection/collection.dart';
 import 'package:gatekeeper/src/utils.dart';
 
 import 'gatekeeper_base.dart';
@@ -24,11 +26,21 @@ class GatekeeperServer {
   /// The access key required to authenticate connections. Minimal length: 32
   final String accessKey;
 
+  late final Uint8List accessKeyHash;
+
   /// The port the server listens on for incoming connections.
   final int listenPort;
 
   /// The address the server binds to. Defaults to [InternetAddress.anyIPv4] if not specified.
   final Object address;
+
+  /// The maximum number of consecutive login errors allowed before
+  /// blocking the remote address.
+  final int loginErrorLimit;
+
+  /// Defines the duration for which a remote address remains blocked
+  /// after exceeding the login error limit.
+  final Duration loginErrorBlockingTime;
 
   /// Creates a [GatekeeperServer] instance.
   ///
@@ -37,12 +49,31 @@ class GatekeeperServer {
   /// - [listenPort]: the port to listen for connections. NO default port for security purpose.
   /// - [address]: Optional addresses to bind. See [ServerSocket.bind]. Default: [InternetAddress.anyIPv4]
   GatekeeperServer(this.gatekeeper,
-      {required this.accessKey, required this.listenPort, Object? address})
-      : address = address ?? InternetAddress.anyIPv4 {
+      {required this.accessKey,
+      required this.listenPort,
+      Object? address,
+      int? loginErrorLimit,
+      Duration? loginErrorBlockingTime})
+      : address = address ?? InternetAddress.anyIPv4,
+        loginErrorLimit = normalizeLoginErrorLimit(loginErrorLimit),
+        loginErrorBlockingTime =
+            normalizeLoginErrorBlockingTime(loginErrorBlockingTime) {
     if (accessKey.length < 32) {
       throw ArgumentError(
           "Invalid `accessKey` length: ${accessKey.length} < 32");
     }
+
+    accessKeyHash = hashAccessKey(accessKey);
+  }
+
+  static int normalizeLoginErrorLimit(int? loginErrorLimit) {
+    return math.max(loginErrorLimit ?? 3, 3);
+  }
+
+  static Duration normalizeLoginErrorBlockingTime(Duration? blockingTime) {
+    return blockingTime != null && blockingTime.inMinutes >= 1
+        ? blockingTime
+        : Duration(minutes: 10);
   }
 
   late final Zone _zoneGuarded;
@@ -94,6 +125,20 @@ class GatekeeperServer {
     _SocketHandler(socket, this);
   }
 
+  final Map<String, DateTime> _loginErrorLimit = {};
+
+  bool _isSocketAddressBlocked(_SocketHandler socketHandler) {
+    var time = _loginErrorLimit[socketHandler.remoteAddress];
+    if (time == null) return false;
+
+    var elapsedTime = DateTime.now().difference(time);
+    return elapsedTime < loginErrorBlockingTime;
+  }
+
+  void _onLoginErrorLimit(_SocketHandler socketHandler) {
+    _loginErrorLimit[socketHandler.remoteAddress] = DateTime.now();
+  }
+
   /// Closes the server and stops listening for new connections.
   void close() {
     _server?.close();
@@ -117,12 +162,20 @@ class _SocketHandler {
   _SocketHandler(this.socket, this.server) {
     socket.listen(_onData);
     remoteAddress = socket.remoteAddress.address;
-    _log("Accepted `Socket`.");
+
+    if (server._isSocketAddressBlocked(this)) {
+      close();
+      _log("Blocked `Socket`: $remoteAddress");
+    } else {
+      _log("Accepted `Socket`: $remoteAddress");
+    }
   }
 
   Gatekeeper get gatekeeper => server.gatekeeper;
 
   String get accessKey => server.accessKey;
+
+  Uint8List get accessKeyHash => server.accessKeyHash;
 
   final List<Uint8List> _allData = [];
   int _allDataLength = 0;
@@ -240,11 +293,13 @@ class _SocketHandler {
         {
           ++_loginCount;
 
-          var key = args.trim();
-
           await Future.delayed(Duration(milliseconds: 300));
 
-          if (accessKey == key) {
+          var keyBase64 = args.trim();
+
+          var keyBytes = base64.decode(keyBase64);
+
+          if (_checkAccessKey(keyBytes)) {
             _logged = true;
             socket.writeln("login: true");
 
@@ -253,10 +308,8 @@ class _SocketHandler {
             return true;
           } else {
             socket.writeln("login: false");
-            if (_loginCount > 10) {
-              close();
-              return null;
-            }
+            _onLoginError();
+            return null;
           }
         }
 
@@ -424,9 +477,19 @@ class _SocketHandler {
           return null;
         }
     }
-
-    return null;
   }
+
+  void _onLoginError() {
+    if (_loginCount >= server.loginErrorLimit) {
+      server._onLoginErrorLimit(this);
+      close();
+    }
+  }
+
+  static final ListEquality<int> _bytesEquality = ListEquality<int>();
+
+  bool _checkAccessKey(Uint8List keyBytes) =>
+      _bytesEquality.equals(accessKeyHash, keyBytes);
 
   void _log(String msg) {
     var now = DateTime.now();
