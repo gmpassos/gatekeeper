@@ -12,6 +12,10 @@ import 'gatekeeper_base.dart';
 /// await gatekeeper.blockTCPPort(8080);
 /// ```
 class GatekeeperIpTables extends GatekeeperDriver {
+  final bool verbose;
+
+  GatekeeperIpTables({this.verbose = false});
+
   @override
   Future<String> resolveBinaryPath(String binaryCommand) async {
     try {
@@ -31,15 +35,28 @@ class GatekeeperIpTables extends GatekeeperDriver {
   @override
   Future<String?> runCommand(String binaryPath, List<String> args,
       {bool sudo = false, int? expectedExitCode}) async {
+    if (verbose) {
+      print('-- RUN> ${sudo ? 'sudo ' : ''}$binaryPath ${args.join(' ')}');
+    }
+
     final result = sudo
         ? await Process.run('sudo', [binaryPath, ...args])
         : await Process.run(binaryPath, args);
+
+    if (verbose) {
+      print('-- exitCode: ${result.exitCode}');
+    }
 
     if (expectedExitCode != null && result.exitCode != expectedExitCode) {
       return null;
     }
 
     final output = result.stdout as String? ?? '';
+
+    if (verbose) {
+      print('<<<\n$output>>>');
+    }
+
     return output;
   }
 

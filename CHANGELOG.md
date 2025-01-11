@@ -3,6 +3,9 @@
 - `Gatekeeper`, `GatekeeperDriver`, `GatekeeperClient`, `GatekeeperMock`, `GatekeeperIpTables`:
   - Added `listAcceptedAddressesOnTCPPorts`, `acceptAddressOnTCPPort`, `unacceptAddressOnTCPPort`, `isAcceptedAddressOnPort`.
 
+- `GatekeeperMock`, `GatekeeperIpTables`:
+  - Added option `verbose`.
+
 - `GatekeeperClient`:
   - `processCommand`:
     - Added `list accepted`.

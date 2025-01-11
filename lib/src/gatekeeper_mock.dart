@@ -7,8 +7,12 @@ class GatekeeperMock extends GatekeeperDriver {
   final Set<int> blockedPorts;
   final Set<(String, int)> acceptedAddressesOnPort;
 
+  final bool verbose;
+
   GatekeeperMock(
-      {Set<int>? blockedPorts, Set<(String, int)>? acceptedAddressesOnPort})
+      {Set<int>? blockedPorts,
+      Set<(String, int)>? acceptedAddressesOnPort,
+      this.verbose = false})
       : blockedPorts = blockedPorts ?? {},
         acceptedAddressesOnPort = acceptedAddressesOnPort ?? {};
 
