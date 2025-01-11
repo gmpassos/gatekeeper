@@ -166,6 +166,9 @@ class GatekeeperClient {
     return response?.contains('true') ?? false;
   }
 
+  /// Lists the accepted addresses on TCP ports.
+  ///
+  /// Returns a [Future] that completes with a [Set] of `({String address, int port}` entries.
   Future<Set<({String address, int port})>>
       listAcceptedAddressesOnTCPPorts() async {
     var response = await _sendCommand("list accepts");
