@@ -112,9 +112,12 @@ class _SocketHandler {
 
   final GatekeeperServer server;
 
+  late final String remoteAddress;
+
   _SocketHandler(this.socket, this.server) {
     socket.listen(_onData);
-    print("-- Accept `Socket`: ${socket.remoteAddress.address}");
+    remoteAddress = socket.remoteAddress.address;
+    _log("Accepted `Socket`.");
   }
 
   Gatekeeper get gatekeeper => server.gatekeeper;
@@ -225,12 +228,6 @@ class _SocketHandler {
       close();
     } else if (processed) {
       _removeData(idxNewLine + 1);
-
-      if (cmd == 'login') {
-        print('-- [${socket.remoteAddress.address}] LOGIN');
-      } else {
-        print('-- [${socket.remoteAddress.address}] Processed: $cmd $args');
-      }
     }
   }
 
@@ -250,6 +247,9 @@ class _SocketHandler {
           if (accessKey == key) {
             _logged = true;
             socket.writeln("login: true");
+
+            _log('LOGIN');
+
             return true;
           } else {
             socket.writeln("login: false");
@@ -267,9 +267,32 @@ class _SocketHandler {
             return null;
           }
 
-          var blockedPorts = await gatekeeper.listBlockedTCPPorts();
-          socket.writeln("blocked: ${blockedPorts.join(', ')}");
-          return true;
+          args = args.trim();
+
+          if (args == 'ports') {
+            var blockedPorts = await gatekeeper.listBlockedTCPPorts();
+            socket.writeln("blocked: ${blockedPorts.join(', ')}");
+
+            _log('List ports.');
+
+            return true;
+          } else if (args == 'accepts') {
+            var acceptedAddresses =
+                await gatekeeper.listAcceptedAddressesOnTCPPorts();
+
+            var response = acceptedAddresses
+                .map((e) => '${e.address}:${e.port}')
+                .join('\n');
+
+            socket.writeln(response);
+
+            _log('List accepted addresses.');
+
+            return true;
+          } else {
+            close();
+            return null;
+          }
         }
 
       case 'block':
@@ -284,6 +307,9 @@ class _SocketHandler {
           if (port != null && port >= 10) {
             var ok = await gatekeeper.blockTCPPort(port);
             socket.writeln("block: $ok");
+
+            _log('BLOCKED PORT: $port');
+
             return true;
           } else {
             close();
@@ -303,6 +329,75 @@ class _SocketHandler {
           if (port != null && port >= 10) {
             var ok = await gatekeeper.unblockTCPPort(port);
             socket.writeln("unblock: $ok");
+
+            _log('UNBLOCKED PORT: $port');
+
+            return true;
+          } else {
+            close();
+            return null;
+          }
+        }
+
+      case 'accept':
+        {
+          if (!_logged) {
+            close();
+            return null;
+          }
+
+          var parts = args.split(RegExp(r'\s+'));
+          if (parts.length != 2) {
+            close();
+            return null;
+          }
+
+          var address = parts[0].trim();
+          var port = int.tryParse(parts[1].trim());
+
+          if (address.isNotEmpty && port != null && port >= 10) {
+            if (address == '.') {
+              address = remoteAddress;
+            }
+
+            var ok = await gatekeeper.acceptAddressOnTCPPort(address, port);
+            socket.writeln("accepted: $ok ($address -> $port)");
+
+            _log('ACCEPTED: $address -> $port');
+
+            return true;
+          } else {
+            close();
+            return null;
+          }
+        }
+
+      case 'unaccept':
+        {
+          if (!_logged) {
+            close();
+            return null;
+          }
+
+          var parts = args.split(RegExp(r'\s+'));
+          if (parts.length > 2) {
+            close();
+            return null;
+          }
+
+          var address = parts[0].trim();
+          var port = parts.length > 1 ? int.tryParse(parts[1].trim()) : null;
+
+          if (address.isNotEmpty && (port == null || port >= 10)) {
+            if (address == '.') {
+              address = remoteAddress;
+            }
+
+            var ok = await gatekeeper.unacceptAddressOnTCPPort(address, port);
+            socket.writeln("unaccepted: $ok ($address -> $port)");
+
+            _log('UNACCEPTED: $address -> $port');
+
             return true;
           } else {
             close();
@@ -314,17 +409,29 @@ class _SocketHandler {
         {
           socket.writeln("disconnect: true");
           socket.close();
+
+          _log('DISCONNECT');
+
           return true;
         }
 
       default:
         {
           close();
+
+          _log('CLOSE - Unknown command: $cmd');
+
           return null;
         }
     }
 
     return null;
+  }
+
+  void _log(String msg) {
+    var now = DateTime.now();
+    var time = '$now'.padRight(26, '0');
+    print('$time [$remoteAddress] $msg');
   }
 
   void close() {
