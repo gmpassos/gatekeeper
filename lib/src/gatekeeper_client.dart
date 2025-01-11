@@ -176,7 +176,7 @@ class GatekeeperClient {
 
     var entries = response
         .trim()
-        .split(RegExp(r'\n'))
+        .split(RegExp(r';'))
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .map((e) {

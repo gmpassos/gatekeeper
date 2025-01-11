@@ -66,7 +66,28 @@ void main() {
             (address: '192.168.0.100', port: 2224),
           }));
 
+      expect(
+          await client.acceptAddressOnTCPPort('192.168.0.100', 2223), isTrue);
+
+      expect(
+          await client.listAcceptedAddressesOnTCPPorts(),
+          equals(<({String address, int port})>{
+            (address: '192.168.0.100', port: 2224),
+            (address: '192.168.0.100', port: 2223),
+          }));
+
       (await client.unacceptAddressOnTCPPort('192.168.0.100', 2224), isTrue);
+
+      expect(
+          await client.listAcceptedAddressesOnTCPPorts(),
+          equals(<({String address, int port})>{
+            (address: '192.168.0.100', port: 2223),
+          }));
+
+      (await client.unacceptAddressOnTCPPort('192.168.0.100', 2223), isTrue);
+
+      expect(await client.listAcceptedAddressesOnTCPPorts(),
+          equals(<({String address, int port})>{}));
 
       expect(await client.unblockTCPPort(2224), isTrue);
       expect(await client.listBlockedTCPPorts(), equals(<int>{}));

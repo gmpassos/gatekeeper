@@ -282,7 +282,7 @@ class _SocketHandler {
 
             var response = acceptedAddresses
                 .map((e) => '${e.address}:${e.port}')
-                .join('\n');
+                .join('; ');
 
             socket.writeln(response);
 
