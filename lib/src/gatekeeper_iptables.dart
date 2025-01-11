@@ -247,6 +247,8 @@ class GatekeeperIpTables extends GatekeeperDriver {
       'tcp',
       '--dport',
       '$port',
+      '-s',
+      address,
       '-j',
       'ACCEPT',
     ];
