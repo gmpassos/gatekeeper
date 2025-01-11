@@ -238,7 +238,7 @@ class GatekeeperClient {
     command = command.trim();
     if (command.isEmpty) return false;
 
-    var parts = command.split(' ');
+    var parts = command.split(RegExp(r'\s+'));
 
     var cmd = parts[0].trim().toLowerCase();
 
@@ -247,9 +247,48 @@ class GatekeeperClient {
       case 'ls':
       case 'list':
         {
-          var ports = await listBlockedTCPPorts();
-          print('-- Blocked ports: $ports');
-          return true;
+          var type = parts.length > 1 ? parts[1].trim().toLowerCase() : 'all';
+
+          switch (type) {
+            case 'port':
+            case 'ports':
+            case 'block':
+            case 'blocks':
+            case 'blocked':
+              {
+                var ports = await listBlockedTCPPorts();
+                print('-- Blocked ports: $ports');
+                return true;
+              }
+
+            case 'address':
+            case 'addresses':
+            case 'accept':
+            case 'accepts':
+            case 'accepted':
+              {
+                var accepts = await listAcceptedAddressesOnTCPPorts();
+                print('-- Accepted addresses: $accepts');
+                return true;
+              }
+
+            case 'all':
+              {
+                var ports = await listBlockedTCPPorts();
+                print('-- Blocked ports: $ports');
+
+                var accepts = await listAcceptedAddressesOnTCPPorts();
+                print('-- Accepted addresses: $accepts');
+
+                return true;
+              }
+
+            default:
+              {
+                print('** Unknown list type: $type');
+                return false;
+              }
+          }
         }
 
       case 'block':
@@ -275,6 +314,41 @@ class GatekeeperClient {
 
           var blocked = await unblockTCPPort(port);
           print('-- Unblocked $port: $blocked');
+          return true;
+        }
+
+      case 'accept':
+        {
+          var address = parts[1].trim();
+          if (address.isEmpty) {
+            print('** Empty address');
+            return false;
+          }
+
+          var port = int.tryParse(parts[2].trim());
+          if (port == null || port < 10) {
+            print('** Invalid port: $port');
+            return false;
+          }
+
+          var accepted = await acceptAddressOnTCPPort(address, port);
+          print('-- Accepted address `$address` on port $port: $accepted');
+          return true;
+        }
+
+      case 'unaccept':
+        {
+          var address = parts[1].trim();
+          if (address.isEmpty) {
+            print('** Empty address');
+            return false;
+          }
+
+          var port = parts.length > 2 ? int.tryParse(parts[2].trim()) : null;
+
+          var unaccepted = await unacceptAddressOnTCPPort(address, port);
+          print(
+              '-- Unaccepted address `$address` on port ${port ?? '*'}: $unaccepted');
           return true;
         }
 
