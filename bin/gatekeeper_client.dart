@@ -39,7 +39,7 @@ void main(List<String> argsOrig) async {
   }
 
   print(
-      '-- Logged at `GatekeeperServer` @ $host:$port [${login.serverVersion}]');
+      '-- Logged to `GatekeeperServer` @ $host:$port [${login.serverVersion}]');
 
   print('------------------------------------------------------');
 

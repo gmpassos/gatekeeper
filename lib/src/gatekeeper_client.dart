@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'crypto.dart';
 import 'crypto_utils.dart' as crypto_utils;
+import 'gatekeeper_const.dart';
 import 'utils.dart';
 
 /// The [GatekeeperClient] class allows a client to connect to a [GatekeeperServer]
@@ -503,5 +504,5 @@ class GatekeeperClient {
 
   @override
   String toString() =>
-      'GatekeeperClient{host: $host, port: $port, logged: $isLogged}';
+      'GatekeeperClient[$gatekeeperVersion]{host: $host, port: $port, logged: $isLogged}';
 }

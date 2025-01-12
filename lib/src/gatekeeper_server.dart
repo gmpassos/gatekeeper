@@ -154,9 +154,8 @@ class GatekeeperServer {
   }
 
   @override
-  String toString() {
-    return 'GatekeeperServer{listenPort: $listenPort, address: $address}@$gatekeeper';
-  }
+  String toString() =>
+      'GatekeeperServer[${Gatekeeper.VERSION}]{listenPort: $listenPort, address: $address}@$gatekeeper';
 }
 
 class _SocketHandler {

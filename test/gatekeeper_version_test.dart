@@ -29,11 +29,11 @@ void main() {
       print('PubSpec.version: ${pubSpec.version}');
 
       var apiRootFile = File(
-          path.join(projectDirectory.path, 'lib/src/gatekeeper_base.dart'));
+          path.join(projectDirectory.path, 'lib/src/gatekeeper_const.dart'));
 
       var apiRootSource = apiRootFile.readAsStringSync();
 
-      var regExpVersion = RegExp(r"static\s+final\s+VERSION\s+=\s+'(.*?)'");
+      var regExpVersion = RegExp(r"const\s+gatekeeperVersion\s+=\s+'(.*?)'");
 
       var gatekeeperVersion =
           regExpVersion.firstMatch(apiRootSource)?.group(1) ??
