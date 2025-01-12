@@ -85,20 +85,32 @@ Uint8List _sessionKeySalt() {
 }
 
 ({Uint8List exchangeKey, Uint8List exchangeKeyEncrypted}) generateExchangeKey(
-    Uint8List aesKey) {
+    Uint8List aesKey,
+    {bool verbose = false}) {
   var exchangeKey = generateRandomAESKey(randomLength: 32);
-  var exchangeKeyEncrypted = encryptSessionKey(aesKey, exchangeKey);
+  var exchangeKeyEncrypted =
+      encryptSessionKey(aesKey, exchangeKey, verbose: verbose);
   return (exchangeKey: exchangeKey, exchangeKeyEncrypted: exchangeKeyEncrypted);
 }
 
-Uint8List encryptSessionKey(Uint8List aesKey, Uint8List sessionKey) {
+Uint8List encryptSessionKey(Uint8List aesKey, Uint8List sessionKey,
+    {bool verbose = false}) {
   var sessionKeySalt = _sessionKeySalt();
+  if (verbose) {
+    print('-- encryptSessionKey> sessionKeySalt: $sessionKeySalt');
+  }
+
   final encrypter = Encrypter(AES(Key(aesKey)));
   return encrypter.encryptBytes(sessionKey, iv: IV(sessionKeySalt)).bytes;
 }
 
-Uint8List decryptSessionKey(Uint8List aesKey, Uint8List sessionKeyEncrypted) {
+Uint8List decryptSessionKey(Uint8List aesKey, Uint8List sessionKeyEncrypted,
+    {bool verbose = false}) {
   var sessionKeySalt = _sessionKeySalt();
+  if (verbose) {
+    print('-- decryptSessionKey> sessionKeySalt: $sessionKeySalt');
+  }
+
   final encrypter = Encrypter(AES(Key(aesKey)));
 
   var sessionKey = encrypter.decryptBytes(Encrypted(sessionKeyEncrypted),
