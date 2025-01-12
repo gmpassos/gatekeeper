@@ -168,6 +168,14 @@ class GatekeeperServer {
 
   void _onSocketError(_SocketHandler socketHandler) {
     var remoteAddress = socketHandler.remoteAddress;
+
+    if (remoteAddress == '127.0.0.1' ||
+        remoteAddress == '::1' ||
+        remoteAddress == 'localhost') {
+      print('-- Ignore local `Socket` $remoteAddress error count.');
+      return;
+    }
+
     var prev = _socketError[remoteAddress];
 
     if (prev != null) {
