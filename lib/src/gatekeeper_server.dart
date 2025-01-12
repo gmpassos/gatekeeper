@@ -161,7 +161,7 @@ class GatekeeperServer {
   void _onLoginErrorLimit(_SocketHandler socketHandler) {
     var remoteAddress = socketHandler.remoteAddress;
     _loginErrorLimit[remoteAddress] = DateTime.now();
-    print('-- `Socket` $remoteAddress login error limit!');
+    print('-- `Socket` $remoteAddress: login error limit!');
   }
 
   final Map<String, (int, DateTime)> _socketError = {};
@@ -232,7 +232,7 @@ class _SocketHandler {
     if (!_logged) {
       close();
       server._onSocketError(this);
-      _log('`Socket` $remoteAddress login timeout!');
+      _log('`Socket` $remoteAddress: login timeout!');
     }
   }
 
@@ -241,6 +241,7 @@ class _SocketHandler {
     server._onSocketError(this);
     if (verbose) {
       print('-- `Socket` $remoteAddress error: $error');
+      print(stackTrace);
     }
   }
 
