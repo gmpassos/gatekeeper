@@ -1,6 +1,6 @@
 name: gatekeeper
 description: Gatekeeper is a Dart package for managing TCP ports with a manager, server, and client. Control ports programmatically, via IPC, or remotely for efficient port management.
-version: 1.0.4
+version: 1.0.5
 repository: https://github.com/gmpassos/gatekeeper
 
 environment:

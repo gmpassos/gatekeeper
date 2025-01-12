@@ -1,3 +1,9 @@
+## 1.0.5
+
+- `SocketHandler`:
+  - Added `isClosed`.
+  - `_checkLogged`: check `isClosed`.
+
 ## 1.0.4
 
 - `Gatekeeper`.

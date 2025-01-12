@@ -230,7 +230,7 @@ class _SocketHandler {
   }
 
   void _checkLogged() {
-    if (!_logged) {
+    if (!_logged && !isClosed) {
       close();
       server._onSocketError(this);
       _log('`Socket` $remoteAddress: login timeout!');
@@ -701,9 +701,16 @@ class _SocketHandler {
     print('$time [$remoteAddress] $msg');
   }
 
+  bool get isClosed => _socketSubscription != null;
+
   void close() {
-    _socketSubscription?.cancel();
+    final socketSubscription = _socketSubscription;
     _socketSubscription = null;
+
+    try {
+      socketSubscription?.cancel();
+    } catch (_) {}
+
     socket.close();
     _allData.clear();
   }
