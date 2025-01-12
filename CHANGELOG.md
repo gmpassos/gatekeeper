@@ -1,3 +1,8 @@
+## 1.0.6
+
+- `SocketHandler`:
+  - Fix `isClosed`.
+
 ## 1.0.5
 
 - `SocketHandler`:

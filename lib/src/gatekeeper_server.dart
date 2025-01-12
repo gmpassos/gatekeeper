@@ -701,7 +701,7 @@ class _SocketHandler {
     print('$time [$remoteAddress] $msg');
   }
 
-  bool get isClosed => _socketSubscription != null;
+  bool get isClosed => _socketSubscription == null;
 
   void close() {
     final socketSubscription = _socketSubscription;
