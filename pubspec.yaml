@@ -12,11 +12,11 @@ executables:
 
 dependencies:
   args_simple: ^1.1.0
-  base_codecs: ^1.0.1
   collection: ^1.19.1
   crypto: ^3.0.6
   encrypt: ^5.0.3
   pointycastle: ^3.9.1
+  #base_codecs: ^1.0.1
 
 dev_dependencies:
   lints: ^5.1.1

@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:base_codecs/base_codecs.dart';
-
 import 'crypto.dart';
 import 'crypto_utils.dart' as crypto_utils;
 import 'utils.dart';
@@ -200,10 +198,10 @@ class GatekeeperClient {
   Future<bool> _exchangeSessionKey() async {
     var exchange = crypto_utils.generateExchangeKey(aesEncryptor.aesKey);
 
-    if (verbose) {
-      print(
-          '-- Exchange SessionKey> exchangeKeyEncrypted: ${base16.encode(exchange.exchangeKeyEncrypted)}');
-    }
+    // if (verbose) {
+    //   print(
+    //       '-- Exchange SessionKey> exchangeKeyEncrypted: ${base16.encode(exchange.exchangeKeyEncrypted)}');
+    // }
 
     var exchangeKeyEncryptedStr =
         String.fromCharCodes(exchange.exchangeKeyEncrypted);

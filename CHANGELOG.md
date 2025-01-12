@@ -6,8 +6,6 @@
 - `gatekeeper_server`:
   - `login`: also respond with the server version.
 
-- base_codecs: ^1.0.1
-
 - pubspec_parse: ^1.5.0
 - path: ^1.9.1
 
