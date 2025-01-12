@@ -5,6 +5,8 @@
 
 - `gatekeeper_server`:
   - `login`: also respond with the server version.
+  - Added `_onSocketError`: block sockets with errors.
+  - Added `_checkLogged`: close not logged sockets after 30s. 
 
 - pubspec_parse: ^1.5.0
 - path: ^1.9.1

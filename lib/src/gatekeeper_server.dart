@@ -43,7 +43,7 @@ class GatekeeperServer {
 
   /// Defines the duration for which a remote address remains blocked
   /// after exceeding the login error limit.
-  final Duration loginErrorBlockingTime;
+  final Duration blockingTime;
 
   final bool verbose;
 
@@ -53,17 +53,18 @@ class GatekeeperServer {
   /// - [accessKey]: the access key for login.
   /// - [listenPort]: the port to listen for connections. NO default port for security purpose.
   /// - [address]: Optional addresses to bind. See [ServerSocket.bind]. Default: [InternetAddress.anyIPv4]
+  /// - [loginErrorLimit]: The limit of login errors to block a [Socket]. Default: 3 ; Minimal: 3
+  /// - [blockingTime]: The [Socket] blocking time. Default: 10min
   GatekeeperServer(this.gatekeeper,
       {required this.accessKey,
       required this.listenPort,
       Object? address,
       int? loginErrorLimit,
-      Duration? loginErrorBlockingTime,
+      Duration? blockingTime,
       this.verbose = false})
       : address = address ?? InternetAddress.anyIPv4,
         loginErrorLimit = normalizeLoginErrorLimit(loginErrorLimit),
-        loginErrorBlockingTime =
-            normalizeLoginErrorBlockingTime(loginErrorBlockingTime) {
+        blockingTime = normalizeBlockingTime(blockingTime) {
     if (accessKey.length < 32) {
       throw ArgumentError(
           "Invalid `accessKey` length: ${accessKey.length} < 32");
@@ -76,7 +77,7 @@ class GatekeeperServer {
     return math.max(loginErrorLimit ?? 3, 3);
   }
 
-  static Duration normalizeLoginErrorBlockingTime(Duration? blockingTime) {
+  static Duration normalizeBlockingTime(Duration? blockingTime) {
     return blockingTime != null && blockingTime.inMinutes >= 1
         ? blockingTime
         : Duration(minutes: 10);
@@ -86,7 +87,9 @@ class GatekeeperServer {
 
   static void _onUncaughtError(Zone self, ZoneDelegate parent, Zone zone,
       Object error, StackTrace stackTrace) {
-    print('[ERROR]: $error');
+    var now = DateTime.now();
+    var time = '$now'.padRight(26, '0');
+    print('$time [UNCAUGHT ERROR]: $error');
     print(stackTrace);
   }
 
@@ -136,15 +139,44 @@ class GatekeeperServer {
   final Map<String, DateTime> _loginErrorLimit = {};
 
   bool _isSocketAddressBlocked(_SocketHandler socketHandler) {
-    var time = _loginErrorLimit[socketHandler.remoteAddress];
-    if (time == null) return false;
+    final remoteAddress = socketHandler.remoteAddress;
 
-    var elapsedTime = DateTime.now().difference(time);
-    return elapsedTime < loginErrorBlockingTime;
+    var time = _loginErrorLimit[remoteAddress];
+    if (time != null) {
+      var elapsedTime = DateTime.now().difference(time);
+      var blocked = elapsedTime < blockingTime;
+      if (blocked) return true;
+    }
+
+    var errorStats = _socketError[remoteAddress];
+    if (errorStats != null && errorStats.$1 > 3) {
+      var elapsedTime = DateTime.now().difference(errorStats.$2);
+      var blocked = elapsedTime < blockingTime;
+      if (blocked) return true;
+    }
+
+    return false;
   }
 
   void _onLoginErrorLimit(_SocketHandler socketHandler) {
-    _loginErrorLimit[socketHandler.remoteAddress] = DateTime.now();
+    var remoteAddress = socketHandler.remoteAddress;
+    _loginErrorLimit[remoteAddress] = DateTime.now();
+    print('-- `Socket` $remoteAddress login error limit!');
+  }
+
+  final Map<String, (int, DateTime)> _socketError = {};
+
+  void _onSocketError(_SocketHandler socketHandler) {
+    var remoteAddress = socketHandler.remoteAddress;
+    var prev = _socketError[remoteAddress];
+
+    if (prev != null) {
+      prev = _socketError[remoteAddress] = (prev.$1 + 1, DateTime.now());
+    } else {
+      prev = _socketError[remoteAddress] = (1, DateTime.now());
+    }
+
+    print('-- `Socket` $remoteAddress error count: $prev');
   }
 
   /// Closes the server and stops listening for new connections.
@@ -165,9 +197,11 @@ class _SocketHandler {
   final GatekeeperServer server;
 
   late final String remoteAddress;
+  StreamSubscription<Uint8List>? _socketSubscription;
 
   _SocketHandler(this.socket, this.server) {
-    socket.listen(_onData);
+    _socketSubscription =
+        socket.listen(_onData, onError: _onError, onDone: _onClose);
     remoteAddress = socket.remoteAddress.address;
 
     if (server._isSocketAddressBlocked(this)) {
@@ -175,6 +209,31 @@ class _SocketHandler {
       _log("Blocked `Socket`: $remoteAddress");
     } else {
       _log("Accepted `Socket`: $remoteAddress");
+
+      Future.delayed(Duration(seconds: 30), _checkLogged);
+    }
+  }
+
+  void _checkLogged() {
+    if (!_logged) {
+      close();
+      server._onSocketError(this);
+      _log('`Socket` $remoteAddress login timeout!');
+    }
+  }
+
+  void _onError(Object error, StackTrace stackTrace) {
+    close();
+    server._onSocketError(this);
+    if (verbose) {
+      print('-- `Socket` $remoteAddress error: $error');
+    }
+  }
+
+  void _onClose() {
+    close();
+    if (verbose) {
+      print('-- `Socket` $remoteAddress closed.');
     }
   }
 
@@ -200,10 +259,18 @@ class _SocketHandler {
   final List<Uint8List> _allData = [];
   int _allDataLength = 0;
 
-  void _onData(Uint8List block) {
+  void _onData(Uint8List block) async {
     _allData.add(block);
     _allDataLength += block.length;
-    _processData();
+
+    try {
+      await _processData();
+    } catch (e, s) {
+      close();
+      server._onSocketError(this);
+      _log('-- onData> `Socket` $remoteAddress error: $e');
+      print(s);
+    }
   }
 
   Uint8List _compactData() {
@@ -253,7 +320,7 @@ class _SocketHandler {
     // print('<<${latin1.decode(rest)}>>');
   }
 
-  void _processData() async {
+  Future<void> _processData() async {
     if (_allDataLength < 4) {
       return;
     }
@@ -601,6 +668,8 @@ class _SocketHandler {
   }
 
   void close() {
+    _socketSubscription?.cancel();
+    _socketSubscription = null;
     socket.close();
     _allData.clear();
   }
