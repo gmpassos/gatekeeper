@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'crypto.dart';
 import 'crypto_utils.dart' as crypto_utils;
+import 'gatekeeper_const.dart';
 import 'utils.dart';
 
 /// The [GatekeeperClient] class allows a client to connect to a [GatekeeperServer]
@@ -158,14 +159,14 @@ class GatekeeperClient {
   ///
   /// - [accessKey]: The access key used to authenticate the login.
   ///
-  /// Returns a [Future] that completes with `true` if login was successful,
-  /// or `false` if it failed.
-  Future<bool> login(String accessKey) async {
+  /// Returns a [Future] that completes with `(ok: true, serverVersion: 'x.x.x'})` if login was successful,
+  /// or `(ok: false, serverVersion: null})` if it failed.
+  Future<({bool ok, String? serverVersion})> login(String accessKey) async {
     _accessKey = accessKey;
 
     if (secure) {
       var ok = await _exchangeSessionKey();
-      if (!ok) return false;
+      if (!ok) return (ok: false, serverVersion: null);
     }
 
     var sessionKey = chainAESEncryptor.sessionKey;
@@ -174,20 +175,35 @@ class GatekeeperClient {
     var accessKeyBase64 = base64.encode(accessKeyHash);
 
     var response = await _sendCommand("login $accessKeyBase64");
-    var logged = response?.contains('true') ?? false;
-    if (logged) {
-      _logged = true;
+
+    var logged = false;
+    String? serverVersion;
+
+    if (response != null && response.isNotEmpty) {
+      logged = response.contains('true');
+      if (logged) {
+        _logged = true;
+      }
+
+      serverVersion = RegExp(r'\[(.*?)]').firstMatch(response)?.group(1);
     }
 
     if (verbose) {
-      print('-- LOGIN: $logged');
+      print(
+          '-- LOGIN: $logged ${serverVersion != null ? '[$serverVersion]' : ''}');
     }
 
-    return logged;
+    return (ok: true, serverVersion: serverVersion);
   }
 
   Future<bool> _exchangeSessionKey() async {
     var exchange = crypto_utils.generateExchangeKey(aesEncryptor.aesKey);
+
+    // if (verbose) {
+    //   print(
+    //       '-- Exchange SessionKey> exchangeKeyEncrypted: ${base16.encode(exchange.exchangeKeyEncrypted)}');
+    // }
+
     var exchangeKeyEncryptedStr =
         String.fromCharCodes(exchange.exchangeKeyEncrypted);
 
@@ -488,5 +504,5 @@ class GatekeeperClient {
 
   @override
   String toString() =>
-      'GatekeeperClient{host: $host, port: $port, logged: $isLogged}';
+      'GatekeeperClient[$gatekeeperVersion]{host: $host, port: $port, logged: $isLogged}';
 }

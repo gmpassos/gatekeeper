@@ -1,3 +1,5 @@
+import 'gatekeeper_const.dart';
+
 /// The [Gatekeeper] class manages TCP port access by interfacing with the
 /// [GatekeeperDriver]. It provides functionality to list, block, and unblock
 /// TCP ports with optional permission checks and sudo privileges.
@@ -12,6 +14,9 @@
 /// await gatekeeper.blockTCPPort(8080);
 /// ```
 class Gatekeeper {
+  // ignore: non_constant_identifier_names
+  static final VERSION = gatekeeperVersion;
+
   /// The driver used to interact with the underlying system.
   final GatekeeperDriver driver;
 
@@ -112,9 +117,8 @@ class Gatekeeper {
   Future<bool> resolve() => driver.resolve();
 
   @override
-  String toString() {
-    return 'Gatekeeper{driver: $driver, sudo: $sudo, allowedPorts: $allowedPorts, allowAllPorts: $allowAllPorts}';
-  }
+  String toString() =>
+      'Gatekeeper[$VERSION]{driver: $driver, sudo: $sudo, allowedPorts: $allowedPorts, allowAllPorts: $allowAllPorts}';
 }
 
 /// The [GatekeeperDriver] class is an abstract class that defines the contract

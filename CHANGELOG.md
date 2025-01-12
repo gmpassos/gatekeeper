@@ -1,3 +1,17 @@
+## 1.0.4
+
+- `Gatekeeper`.
+  - Added `VERSION`.
+
+- `gatekeeper_server`:
+  - `login`: also respond with the server version.
+  - Added `_onSocketError`: block sockets with errors.
+  - Added `_checkLogged`: close not logged sockets after 30s.
+  - Added `_onInvalidSocketProtocol`: count errors for invalid protocol.
+
+- pubspec_parse: ^1.5.0
+- path: ^1.9.1
+
 ## 1.0.3
 
 - New `AESEncryptor` and `ChainAESEncryptor`.

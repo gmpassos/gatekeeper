@@ -13,8 +13,9 @@ void main(List<String> argsOrig) async {
 
   final host = args.argumentAsString(0).toString();
   final port = args.argumentAsInt(1) ?? (throw ArgumentError("Invalid port!"));
+  final verbose = args.flagOr('verbose', false) ?? false;
 
-  final client = GatekeeperClient(host, port);
+  final client = GatekeeperClient(host, port, verbose: verbose);
 
   print('[Gatekeeper - Client]\n');
 
@@ -32,10 +33,13 @@ void main(List<String> argsOrig) async {
 
   print('** Running: $client');
 
-  var logged = await client.login(accessKey);
-  if (!logged) {
+  var login = await client.login(accessKey);
+  if (!login.ok) {
     throw StateError("Login error!");
   }
+
+  print(
+      '-- Logged to `GatekeeperServer` @ $host:$port [${login.serverVersion}]');
 
   print('------------------------------------------------------');
 

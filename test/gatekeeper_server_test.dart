@@ -70,7 +70,9 @@ Future<void> _testServer({required bool secure}) async {
 
   expect(client.isConnected, isTrue);
 
-  expect(await client.login(accessKey), isTrue);
+  var login = await client.login(accessKey);
+  expect(login.ok, isTrue);
+  expect(login.serverVersion, equals(Gatekeeper.VERSION));
 
   expect(await client.listBlockedTCPPorts(), equals(<int>{}));
 

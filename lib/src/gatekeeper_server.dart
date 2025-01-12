@@ -43,7 +43,7 @@ class GatekeeperServer {
 
   /// Defines the duration for which a remote address remains blocked
   /// after exceeding the login error limit.
-  final Duration loginErrorBlockingTime;
+  final Duration blockingTime;
 
   final bool verbose;
 
@@ -53,17 +53,18 @@ class GatekeeperServer {
   /// - [accessKey]: the access key for login.
   /// - [listenPort]: the port to listen for connections. NO default port for security purpose.
   /// - [address]: Optional addresses to bind. See [ServerSocket.bind]. Default: [InternetAddress.anyIPv4]
+  /// - [loginErrorLimit]: The limit of login errors to block a [Socket]. Default: 3 ; Minimal: 3
+  /// - [blockingTime]: The [Socket] blocking time. Default: 10min
   GatekeeperServer(this.gatekeeper,
       {required this.accessKey,
       required this.listenPort,
       Object? address,
       int? loginErrorLimit,
-      Duration? loginErrorBlockingTime,
+      Duration? blockingTime,
       this.verbose = false})
       : address = address ?? InternetAddress.anyIPv4,
         loginErrorLimit = normalizeLoginErrorLimit(loginErrorLimit),
-        loginErrorBlockingTime =
-            normalizeLoginErrorBlockingTime(loginErrorBlockingTime) {
+        blockingTime = normalizeBlockingTime(blockingTime) {
     if (accessKey.length < 32) {
       throw ArgumentError(
           "Invalid `accessKey` length: ${accessKey.length} < 32");
@@ -76,7 +77,7 @@ class GatekeeperServer {
     return math.max(loginErrorLimit ?? 3, 3);
   }
 
-  static Duration normalizeLoginErrorBlockingTime(Duration? blockingTime) {
+  static Duration normalizeBlockingTime(Duration? blockingTime) {
     return blockingTime != null && blockingTime.inMinutes >= 1
         ? blockingTime
         : Duration(minutes: 10);
@@ -86,7 +87,9 @@ class GatekeeperServer {
 
   static void _onUncaughtError(Zone self, ZoneDelegate parent, Zone zone,
       Object error, StackTrace stackTrace) {
-    print('[ERROR]: $error');
+    var now = DateTime.now();
+    var time = '$now'.padRight(26, '0');
+    print('$time [UNCAUGHT ERROR]: $error');
     print(stackTrace);
   }
 
@@ -136,15 +139,58 @@ class GatekeeperServer {
   final Map<String, DateTime> _loginErrorLimit = {};
 
   bool _isSocketAddressBlocked(_SocketHandler socketHandler) {
-    var time = _loginErrorLimit[socketHandler.remoteAddress];
-    if (time == null) return false;
+    final remoteAddress = socketHandler.remoteAddress;
 
-    var elapsedTime = DateTime.now().difference(time);
-    return elapsedTime < loginErrorBlockingTime;
+    var time = _loginErrorLimit[remoteAddress];
+    if (time != null) {
+      var elapsedTime = DateTime.now().difference(time);
+      var blocked = elapsedTime < blockingTime;
+      if (blocked) return true;
+    }
+
+    var errorStats = _socketError[remoteAddress];
+    if (errorStats != null && errorStats.$1 > 3) {
+      var elapsedTime = DateTime.now().difference(errorStats.$2);
+      var blocked = elapsedTime < blockingTime;
+      if (blocked) return true;
+    }
+
+    return false;
   }
 
   void _onLoginErrorLimit(_SocketHandler socketHandler) {
-    _loginErrorLimit[socketHandler.remoteAddress] = DateTime.now();
+    var remoteAddress = socketHandler.remoteAddress;
+    _loginErrorLimit[remoteAddress] = DateTime.now();
+    print('-- `Socket` $remoteAddress: login error limit!');
+  }
+
+  final Map<String, (int, DateTime)> _socketError = {};
+
+  void _onSocketError(_SocketHandler socketHandler) {
+    var remoteAddress = socketHandler.remoteAddress;
+
+    if (remoteAddress == '127.0.0.1' ||
+        remoteAddress == '::1' ||
+        remoteAddress == 'localhost') {
+      print('-- Ignore local `Socket` $remoteAddress error count.');
+      return;
+    }
+
+    var prev = _socketError[remoteAddress];
+
+    final now = DateTime.now();
+
+    int prevCount;
+    if (prev != null) {
+      var elapsedTime = now.difference(prev.$2);
+      prevCount = elapsedTime > blockingTime ? 0 : prev.$1;
+    } else {
+      prevCount = 0;
+    }
+
+    prev = _socketError[remoteAddress] = (prevCount + 1, now);
+
+    print('-- `Socket` $remoteAddress error count: $prev');
   }
 
   /// Closes the server and stops listening for new connections.
@@ -154,9 +200,8 @@ class GatekeeperServer {
   }
 
   @override
-  String toString() {
-    return 'GatekeeperServer{listenPort: $listenPort, address: $address}@$gatekeeper';
-  }
+  String toString() =>
+      'GatekeeperServer[${Gatekeeper.VERSION}]{listenPort: $listenPort, address: $address}@$gatekeeper';
 }
 
 class _SocketHandler {
@@ -166,16 +211,54 @@ class _SocketHandler {
   final GatekeeperServer server;
 
   late final String remoteAddress;
+  StreamSubscription<Uint8List>? _socketSubscription;
 
   _SocketHandler(this.socket, this.server) {
-    socket.listen(_onData);
     remoteAddress = socket.remoteAddress.address;
 
     if (server._isSocketAddressBlocked(this)) {
       close();
       _log("Blocked `Socket`: $remoteAddress");
     } else {
+      _socketSubscription =
+          socket.listen(_onData, onError: _onError, onDone: _onClose);
+
       _log("Accepted `Socket`: $remoteAddress");
+
+      Future.delayed(Duration(seconds: 30), _checkLogged);
+    }
+  }
+
+  void _checkLogged() {
+    if (!_logged) {
+      close();
+      server._onSocketError(this);
+      _log('`Socket` $remoteAddress: login timeout!');
+    }
+  }
+
+  void _onError(Object error, StackTrace stackTrace) {
+    close();
+    server._onSocketError(this);
+    if (verbose) {
+      print('-- `Socket` $remoteAddress error: $error');
+      print(stackTrace);
+    }
+  }
+
+  void _onInvalidSocketProtocol() {
+    close();
+    server._onSocketError(this);
+
+    if (verbose) {
+      print('-- `Socket` $remoteAddress: invalid protocol!');
+    }
+  }
+
+  void _onClose() {
+    close();
+    if (verbose) {
+      print('-- `Socket` $remoteAddress closed.');
     }
   }
 
@@ -201,10 +284,18 @@ class _SocketHandler {
   final List<Uint8List> _allData = [];
   int _allDataLength = 0;
 
-  void _onData(Uint8List block) {
+  void _onData(Uint8List block) async {
     _allData.add(block);
     _allDataLength += block.length;
-    _processData();
+
+    try {
+      await _processData();
+    } catch (e, s) {
+      close();
+      server._onSocketError(this);
+      _log('-- onData> `Socket` $remoteAddress error: $e');
+      print(s);
+    }
   }
 
   Uint8List _compactData() {
@@ -254,13 +345,13 @@ class _SocketHandler {
     // print('<<${latin1.decode(rest)}>>');
   }
 
-  void _processData() async {
+  Future<void> _processData() async {
     if (_allDataLength < 4) {
       return;
     }
 
     if (_allDataLength > 1024) {
-      close();
+      _onInvalidSocketProtocol();
       return;
     }
 
@@ -273,13 +364,13 @@ class _SocketHandler {
 
     if (idxSpace < 0) {
       if (idxNewLine >= 0) {
-        close();
+        _onInvalidSocketProtocol();
       }
       return;
     }
 
     if (idxSpace <= 1) {
-      close();
+      _onInvalidSocketProtocol();
       return;
     }
 
@@ -288,7 +379,7 @@ class _SocketHandler {
     }
 
     if (idxNewLine < idxSpace) {
-      close();
+      _onInvalidSocketProtocol();
       return;
     }
 
@@ -303,7 +394,7 @@ class _SocketHandler {
 
     if (processed == null) {
       _allData.clear();
-      close();
+      _onInvalidSocketProtocol();
     } else if (processed) {
       _removeData(idxNewLine + 1);
     }
@@ -328,7 +419,16 @@ class _SocketHandler {
   Future<bool?> _processCommand(String cmd, String args) async {
     var secure = false;
     if (cmd.startsWith('_:')) {
-      var msg = chainAESEncryptor.decryptMessage(args);
+      String msg;
+
+      try {
+        msg = chainAESEncryptor.decryptMessage(args);
+      } catch (e, s) {
+        _log(
+            '-- Invalid `Socket` $remoteAddress encryption key while decrypting message!');
+        _onError(e, s);
+        return false;
+      }
 
       if (chainAESEncryptor.sessionKey == null) {
         return _exchangeSessionKey(msg);
@@ -353,7 +453,10 @@ class _SocketHandler {
           if (_checkAccessKey(keyBytes,
               sessionKey: chainAESEncryptor.sessionKey)) {
             _logged = true;
-            _sendResponse("login: true", secure: secure);
+            _sendResponse(
+              "login: true [${Gatekeeper.VERSION}]",
+              secure: secure,
+            );
 
             _log('LOGIN');
 
@@ -534,10 +637,17 @@ class _SocketHandler {
   }
 
   bool _exchangeSessionKey(String exchangeKeyEncryptedStr) {
+    // if (verbose) {
+    //   print(
+    //       '-- Exchange SessionKey> exchangeKeyEncrypted: ${base16.encode(Uint8List.fromList(exchangeKeyEncryptedStr.codeUnits))}');
+    // }
+
     var aesKey = _aesEncryptor.aesKey;
 
     var exchangeKey = decryptSessionKey(
-        aesKey, Uint8List.fromList(exchangeKeyEncryptedStr.codeUnits));
+      aesKey,
+      Uint8List.fromList(exchangeKeyEncryptedStr.codeUnits),
+    );
 
     if (exchangeKey.length > 32) {
       exchangeKey = Uint8List.fromList(exchangeKey.sublist(0, 32));
@@ -592,6 +702,8 @@ class _SocketHandler {
   }
 
   void close() {
+    _socketSubscription?.cancel();
+    _socketSubscription = null;
     socket.close();
     _allData.clear();
   }
