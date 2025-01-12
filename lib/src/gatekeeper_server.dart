@@ -548,7 +548,6 @@ class _SocketHandler {
     var exchangeKey = decryptSessionKey(
       aesKey,
       Uint8List.fromList(exchangeKeyEncryptedStr.codeUnits),
-      verbose: verbose,
     );
 
     if (exchangeKey.length > 32) {

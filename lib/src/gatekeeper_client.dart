@@ -198,8 +198,7 @@ class GatekeeperClient {
   }
 
   Future<bool> _exchangeSessionKey() async {
-    var exchange =
-        crypto_utils.generateExchangeKey(aesEncryptor.aesKey, verbose: verbose);
+    var exchange = crypto_utils.generateExchangeKey(aesEncryptor.aesKey);
 
     if (verbose) {
       print(
@@ -227,9 +226,7 @@ class GatekeeperClient {
       crypto_utils.decryptSessionKey(
         exchangeKey,
         sessionKeyEncrypted,
-        verbose: verbose,
       ),
-      verbose: verbose,
     );
 
     if (sessionKey.length > 32) {
