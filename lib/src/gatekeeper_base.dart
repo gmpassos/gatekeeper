@@ -12,6 +12,9 @@
 /// await gatekeeper.blockTCPPort(8080);
 /// ```
 class Gatekeeper {
+  // ignore: non_constant_identifier_names
+  static final VERSION = '1.0.4';
+
   /// The driver used to interact with the underlying system.
   final GatekeeperDriver driver;
 

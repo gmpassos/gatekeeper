@@ -1,3 +1,8 @@
+## 1.0.4
+
+- `Gatekeeper`.
+  - Added `VERSION`.
+
 ## 1.0.3
 
 - New `AESEncryptor` and `ChainAESEncryptor`.

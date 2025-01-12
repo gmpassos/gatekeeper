@@ -53,6 +53,7 @@ void main(List<String> argsOrig) async {
     gatekeeper,
     accessKey: accessKey,
     listenPort: listenPort,
+    verbose: verbose,
   );
 
   var started = await server.start();
