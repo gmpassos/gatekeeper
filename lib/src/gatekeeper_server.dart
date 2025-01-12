@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:base_codecs/base_codecs.dart';
 import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
 
@@ -537,6 +538,11 @@ class _SocketHandler {
   }
 
   bool _exchangeSessionKey(String exchangeKeyEncryptedStr) {
+    if (verbose || true) {
+      print(
+          '-- Exchange SessionKey> exchangeKeyEncrypted: ${base16.encode(Uint8List.fromList(exchangeKeyEncryptedStr.codeUnits))}');
+    }
+
     var aesKey = _aesEncryptor.aesKey;
 
     var exchangeKey = decryptSessionKey(
