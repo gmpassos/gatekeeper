@@ -75,7 +75,7 @@ final IV _iv = IV.fromBase64('2aYrIaRnlZZCSbxDtXlG/g==');
 
 Uint8List _sessionKeySalt() {
   var now = DateTime.now().toUtc();
-  var t = DateTime(now.year, now.month, now.day);
+  var t = DateTime.utc(now.year, now.month, now.day);
   return deriveKey(
     'session.salt:${t.millisecondsSinceEpoch}',
     _iv.bytes,
