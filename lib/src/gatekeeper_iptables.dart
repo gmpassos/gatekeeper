@@ -290,6 +290,8 @@ class GatekeeperIpTables extends GatekeeperDriver {
     final regExpAddress = RegExp(r'tcp\s+--\s+\*\s+\*\s+(\S+)');
     final regExpPort = RegExp(r'dpt:(\d\d+)');
 
+    var ok = false;
+
     for (final line in output.split('\n')) {
       if (line.contains('ACCEPT')) {
         final matchAddress = regExpAddress.firstMatch(line);
@@ -313,14 +315,17 @@ class GatekeeperIpTables extends GatekeeperDriver {
                 expectedExitCode: 0,
               );
 
-              return output?.isNotEmpty ?? false;
+              var cmdOk = output?.isNotEmpty ?? false;
+              if (cmdOk) {
+                ok = true;
+              }
             }
           }
         }
       }
     }
 
-    return false;
+    return ok;
   }
 
   @override

@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:gatekeeper/src/utils.dart';
+import 'crypto.dart';
+import 'crypto_utils.dart' as crypto_utils;
+import 'utils.dart';
 
 /// The [GatekeeperClient] class allows a client to connect to a [GatekeeperServer]
 /// and interact with it by sending commands such as login, listing blocked TCP ports,
@@ -24,11 +26,17 @@ class GatekeeperClient {
   /// The port on which the [GatekeeperServer] is listening.
   final int port;
 
+  /// If `true` use a secure layer for communication.
+  final bool secure;
+
+  final bool verbose;
+
   /// Creates a new [GatekeeperClient] instance.
   ///
   /// - [host]: The host address of the [GatekeeperServer].
   /// - [port]: The port number on which the [GatekeeperServer] is listening.
-  GatekeeperClient(this.host, this.port);
+  GatekeeperClient(this.host, this.port,
+      {this.secure = true, this.verbose = false});
 
   Socket? _socket;
 
@@ -82,8 +90,27 @@ class GatekeeperClient {
   Socket _connectedSocket() =>
       _socket ?? (throw StateError("`Socket` not connected!"));
 
+  AESEncryptor? _aesEncryptor;
+
+  AESEncryptor get aesEncryptor => _aesEncryptor ??= AESEncryptor(_accessKey ??
+      (throw StateError("`_accessKey` not defined yet! Call `login` first.")));
+
+  ChainAESEncryptor? _chainAESEncryptor;
+
+  ChainAESEncryptor get chainAESEncryptor =>
+      _chainAESEncryptor ??= ChainAESEncryptor(
+        aesEncryptor,
+        server: false,
+        seed1: (_socket ?? (throw StateError("Null `_socket`"))).remotePort,
+      );
+
   Future<String?> _sendCommand(String command) async {
     final socket = _connectedSocket();
+
+    if (secure) {
+      var enc = chainAESEncryptor.encryptMessage(command);
+      command = '_: $enc';
+    }
 
     var waitingData = _waitingData;
     while (waitingData != null) {
@@ -102,13 +129,30 @@ class GatekeeperClient {
       _waitingData = null;
     }
 
-    return response != null ? latin1.decode(response) : null;
+    String? responseMsg;
+    if (response != null) {
+      responseMsg = latin1.decode(response);
+
+      if (secure && !responseMsg.startsWith('_: ')) {
+        close();
+        throw StateError("Insecure Server!");
+      }
+
+      if (responseMsg.startsWith('_: ')) {
+        var encryptedMsg = responseMsg.substring(3);
+        responseMsg = chainAESEncryptor.decryptMessage(encryptedMsg);
+      }
+    }
+
+    return responseMsg;
   }
 
   bool _logged = false;
 
   /// A flag indicating whether this client is logged.
   bool get isLogged => _logged;
+
+  String? _accessKey;
 
   /// Logs in to the [GatekeeperServer] using the provided access key.
   ///
@@ -117,12 +161,68 @@ class GatekeeperClient {
   /// Returns a [Future] that completes with `true` if login was successful,
   /// or `false` if it failed.
   Future<bool> login(String accessKey) async {
-    var response = await _sendCommand("login $accessKey");
+    _accessKey = accessKey;
+
+    if (secure) {
+      var ok = await _exchangeSessionKey();
+      if (!ok) return false;
+    }
+
+    var sessionKey = chainAESEncryptor.sessionKey;
+
+    var accessKeyHash = hashAccessKey(accessKey, sessionKey: sessionKey);
+    var accessKeyBase64 = base64.encode(accessKeyHash);
+
+    var response = await _sendCommand("login $accessKeyBase64");
     var logged = response?.contains('true') ?? false;
     if (logged) {
       _logged = true;
     }
+
+    if (verbose) {
+      print('-- LOGIN: $logged');
+    }
+
     return logged;
+  }
+
+  Future<bool> _exchangeSessionKey() async {
+    var exchange = crypto_utils.generateExchangeKey(aesEncryptor.aesKey);
+    var exchangeKeyEncryptedStr =
+        String.fromCharCodes(exchange.exchangeKeyEncrypted);
+
+    var response = await _sendCommand(exchangeKeyEncryptedStr);
+    if (response == null) {
+      close();
+      return false;
+    }
+
+    var sessionKeyEncrypted = Uint8List.fromList(response.codeUnits);
+
+    var exchangeKey = exchange.exchangeKey;
+    if (exchangeKey.length > 32) {
+      exchangeKey = Uint8List.fromList(exchangeKey.sublist(0, 32));
+    }
+
+    var sessionKey = crypto_utils.decryptSessionKey(
+      aesEncryptor.aesKey,
+      crypto_utils.decryptSessionKey(
+        exchangeKey,
+        sessionKeyEncrypted,
+      ),
+    );
+
+    if (sessionKey.length > 32) {
+      sessionKey = Uint8List.fromList(sessionKey.sublist(0, 32));
+    }
+
+    chainAESEncryptor.sessionKey = sessionKey;
+
+    if (verbose) {
+      print('-- SESSION KEY DEFINED.');
+    }
+
+    return true;
   }
 
   /// Lists the TCP ports that are currently blocked.

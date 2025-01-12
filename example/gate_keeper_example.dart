@@ -21,4 +21,13 @@ void main() async {
   // Try to block a not allowed port:
   var failedBlock = await gatekeeper.blockTCPPort(8080);
   print("-- Failed block of 2080: $failedBlock");
+
+  // Accept connections on blocked port 8080:
+  gatekeeper.acceptAddressOnTCPPort('192.168.0.100', 8080);
+
+  // "Unaccept" connections on blocked port 8080:
+  gatekeeper.unacceptAddressOnTCPPort('192.168.0.100', 8080);
+
+  // "Unaccept" connections on all blocked ports:
+  gatekeeper.unacceptAddressOnTCPPort('192.168.0.100', null);
 }
