@@ -214,14 +214,15 @@ class _SocketHandler {
   StreamSubscription<Uint8List>? _socketSubscription;
 
   _SocketHandler(this.socket, this.server) {
-    _socketSubscription =
-        socket.listen(_onData, onError: _onError, onDone: _onClose);
     remoteAddress = socket.remoteAddress.address;
 
     if (server._isSocketAddressBlocked(this)) {
       close();
       _log("Blocked `Socket`: $remoteAddress");
     } else {
+      _socketSubscription =
+          socket.listen(_onData, onError: _onError, onDone: _onClose);
+
       _log("Accepted `Socket`: $remoteAddress");
 
       Future.delayed(Duration(seconds: 30), _checkLogged);
@@ -242,6 +243,15 @@ class _SocketHandler {
     if (verbose) {
       print('-- `Socket` $remoteAddress error: $error');
       print(stackTrace);
+    }
+  }
+
+  void _onInvalidSocketProtocol() {
+    close();
+    server._onSocketError(this);
+
+    if (verbose) {
+      print('-- `Socket` $remoteAddress: invalid protocol!');
     }
   }
 
@@ -341,7 +351,7 @@ class _SocketHandler {
     }
 
     if (_allDataLength > 1024) {
-      close();
+      _onInvalidSocketProtocol();
       return;
     }
 
@@ -354,13 +364,13 @@ class _SocketHandler {
 
     if (idxSpace < 0) {
       if (idxNewLine >= 0) {
-        close();
+        _onInvalidSocketProtocol();
       }
       return;
     }
 
     if (idxSpace <= 1) {
-      close();
+      _onInvalidSocketProtocol();
       return;
     }
 
@@ -369,7 +379,7 @@ class _SocketHandler {
     }
 
     if (idxNewLine < idxSpace) {
-      close();
+      _onInvalidSocketProtocol();
       return;
     }
 
@@ -384,7 +394,7 @@ class _SocketHandler {
 
     if (processed == null) {
       _allData.clear();
-      close();
+      _onInvalidSocketProtocol();
     } else if (processed) {
       _removeData(idxNewLine + 1);
     }
@@ -409,7 +419,16 @@ class _SocketHandler {
   Future<bool?> _processCommand(String cmd, String args) async {
     var secure = false;
     if (cmd.startsWith('_:')) {
-      var msg = chainAESEncryptor.decryptMessage(args);
+      String msg;
+
+      try {
+        msg = chainAESEncryptor.decryptMessage(args);
+      } catch (e, s) {
+        _log(
+            '-- Invalid `Socket` $remoteAddress encryption key while decrypting message!');
+        _onError(e, s);
+        return false;
+      }
 
       if (chainAESEncryptor.sessionKey == null) {
         return _exchangeSessionKey(msg);
