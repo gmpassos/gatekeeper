@@ -5,9 +5,12 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
-import 'package:gatekeeper/src/utils.dart';
+import 'package:crypto/crypto.dart';
 
+import 'crypto.dart';
+import 'crypto_utils.dart';
 import 'gatekeeper_base.dart';
+import 'utils.dart';
 
 /// The [GatekeeperServer] class represents a server that interacts with a [Gatekeeper]
 /// instance to manage connections and access control. It listens for incoming connections
@@ -42,6 +45,8 @@ class GatekeeperServer {
   /// after exceeding the login error limit.
   final Duration loginErrorBlockingTime;
 
+  final bool verbose;
+
   /// Creates a [GatekeeperServer] instance.
   ///
   /// - [gatekeeper]: the [Gatekeeper] instance.
@@ -53,7 +58,8 @@ class GatekeeperServer {
       required this.listenPort,
       Object? address,
       int? loginErrorLimit,
-      Duration? loginErrorBlockingTime})
+      Duration? loginErrorBlockingTime,
+      this.verbose = false})
       : address = address ?? InternetAddress.anyIPv4,
         loginErrorLimit = normalizeLoginErrorLimit(loginErrorLimit),
         loginErrorBlockingTime =
@@ -121,6 +127,8 @@ class GatekeeperServer {
     return true;
   }
 
+  late final AESEncryptor _aesEncryptor = AESEncryptor(accessKey);
+
   void _onAcceptSocket(Socket socket) {
     _SocketHandler(socket, this);
   }
@@ -176,6 +184,19 @@ class _SocketHandler {
   String get accessKey => server.accessKey;
 
   Uint8List get accessKeyHash => server.accessKeyHash;
+
+  AESEncryptor get _aesEncryptor => server._aesEncryptor;
+
+  ChainAESEncryptor? _chainAESEncryptor;
+
+  ChainAESEncryptor get chainAESEncryptor =>
+      _chainAESEncryptor ??= ChainAESEncryptor(
+        _aesEncryptor,
+        server: true,
+        seed1: server.listenPort,
+      );
+
+  bool get verbose => server.verbose;
 
   final List<Uint8List> _allData = [];
   int _allDataLength = 0;
@@ -271,6 +292,10 @@ class _SocketHandler {
       return;
     }
 
+    if (verbose) {
+      print('-- _processData: <<<${latin1.decode(fullData).trim()}>>>');
+    }
+
     var cmd = latin1.decode(fullData.sublist(0, idxSpace)).trim();
     var args = latin1.decode(fullData.sublist(idxSpace + 1, idxNewLine)).trim();
 
@@ -284,10 +309,37 @@ class _SocketHandler {
     }
   }
 
+  void _sendResponse(String message, {required bool secure}) {
+    if (secure) {
+      var enc = chainAESEncryptor.encryptMessage(message);
+      message = '_: $enc';
+    }
+
+    if (verbose) {
+      print('-- _sendResponse: <<<$message>>>');
+    }
+
+    socket.writeln(message);
+  }
+
   bool _logged = false;
   int _loginCount = 0;
 
   Future<bool?> _processCommand(String cmd, String args) async {
+    var secure = false;
+    if (cmd.startsWith('_:')) {
+      var msg = chainAESEncryptor.decryptMessage(args);
+
+      if (chainAESEncryptor.sessionKey == null) {
+        return _exchangeSessionKey(msg);
+      }
+
+      var idx = msg.indexOf(' ');
+      cmd = msg.substring(0, idx).trim();
+      args = msg.substring(idx + 1);
+      secure = true;
+    }
+
     switch (cmd) {
       case 'login':
         {
@@ -296,18 +348,18 @@ class _SocketHandler {
           await Future.delayed(Duration(milliseconds: 300));
 
           var keyBase64 = args.trim();
-
           var keyBytes = base64.decode(keyBase64);
 
-          if (_checkAccessKey(keyBytes)) {
+          if (_checkAccessKey(keyBytes,
+              sessionKey: chainAESEncryptor.sessionKey)) {
             _logged = true;
-            socket.writeln("login: true");
+            _sendResponse("login: true", secure: secure);
 
             _log('LOGIN');
 
             return true;
           } else {
-            socket.writeln("login: false");
+            _sendResponse("login: false", secure: secure);
             _onLoginError();
             return null;
           }
@@ -324,7 +376,8 @@ class _SocketHandler {
 
           if (args == 'ports') {
             var blockedPorts = await gatekeeper.listBlockedTCPPorts();
-            socket.writeln("blocked: ${blockedPorts.join(', ')}");
+            _sendResponse("blocked: ${blockedPorts.join(', ')}",
+                secure: secure);
 
             _log('List ports.');
 
@@ -337,7 +390,7 @@ class _SocketHandler {
                 .map((e) => '${e.address}:${e.port}')
                 .join('; ');
 
-            socket.writeln(response);
+            _sendResponse(response, secure: secure);
 
             _log('List accepted addresses.');
 
@@ -359,7 +412,7 @@ class _SocketHandler {
 
           if (port != null && port >= 10) {
             var ok = await gatekeeper.blockTCPPort(port);
-            socket.writeln("block: $ok");
+            _sendResponse("block: $ok", secure: secure);
 
             _log('BLOCKED PORT: $port');
 
@@ -381,7 +434,7 @@ class _SocketHandler {
 
           if (port != null && port >= 10) {
             var ok = await gatekeeper.unblockTCPPort(port);
-            socket.writeln("unblock: $ok");
+            _sendResponse("unblock: $ok", secure: secure);
 
             _log('UNBLOCKED PORT: $port');
 
@@ -414,7 +467,7 @@ class _SocketHandler {
             }
 
             var ok = await gatekeeper.acceptAddressOnTCPPort(address, port);
-            socket.writeln("accepted: $ok ($address -> $port)");
+            _sendResponse("accepted: $ok ($address -> $port)", secure: secure);
 
             _log('ACCEPTED: $address -> $port');
 
@@ -447,7 +500,8 @@ class _SocketHandler {
             }
 
             var ok = await gatekeeper.unacceptAddressOnTCPPort(address, port);
-            socket.writeln("unaccepted: $ok ($address -> $port)");
+            _sendResponse("unaccepted: $ok ($address -> $port)",
+                secure: secure);
 
             _log('UNACCEPTED: $address -> $port');
 
@@ -460,7 +514,7 @@ class _SocketHandler {
 
       case 'disconnect':
         {
-          socket.writeln("disconnect: true");
+          _sendResponse("disconnect: true", secure: secure);
           socket.close();
 
           _log('DISCONNECT');
@@ -479,6 +533,38 @@ class _SocketHandler {
     }
   }
 
+  bool _exchangeSessionKey(String exchangeKeyEncryptedStr) {
+    var aesKey = _aesEncryptor.aesKey;
+
+    var exchangeKey = decryptSessionKey(
+        aesKey, Uint8List.fromList(exchangeKeyEncryptedStr.codeUnits));
+
+    if (exchangeKey.length > 32) {
+      exchangeKey = Uint8List.fromList(exchangeKey.sublist(0, 32));
+    }
+
+    var sessionKey = generateRandomAESKey(randomLength: 32);
+
+    var sessionKeyEncrypted = encryptSessionKey(
+      exchangeKey,
+      encryptSessionKey(aesKey, sessionKey),
+    );
+
+    var sessionKeyEncryptedStr = String.fromCharCodes(sessionKeyEncrypted);
+
+    _sendResponse(sessionKeyEncryptedStr, secure: true);
+
+    if (sessionKey.length > 32) {
+      sessionKey = Uint8List.fromList(sessionKey.sublist(0, 32));
+    }
+
+    chainAESEncryptor.sessionKey = sessionKey;
+
+    _log('SESSION');
+
+    return true;
+  }
+
   void _onLoginError() {
     if (_loginCount >= server.loginErrorLimit) {
       server._onLoginErrorLimit(this);
@@ -488,8 +574,16 @@ class _SocketHandler {
 
   static final ListEquality<int> _bytesEquality = ListEquality<int>();
 
-  bool _checkAccessKey(Uint8List keyBytes) =>
-      _bytesEquality.equals(accessKeyHash, keyBytes);
+  bool _checkAccessKey(Uint8List keyBytes, {Uint8List? sessionKey}) {
+    List<int> hash;
+    if (sessionKey != null && sessionKey.isNotEmpty) {
+      hash = sha512.convert([...accessKeyHash, ...sessionKey]).bytes;
+    } else {
+      hash = accessKeyHash;
+    }
+
+    return _bytesEquality.equals(hash, keyBytes);
+  }
 
   void _log(String msg) {
     var now = DateTime.now();
