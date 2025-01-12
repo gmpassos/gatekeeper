@@ -353,7 +353,10 @@ class _SocketHandler {
           if (_checkAccessKey(keyBytes,
               sessionKey: chainAESEncryptor.sessionKey)) {
             _logged = true;
-            _sendResponse("login: true", secure: secure);
+            _sendResponse(
+              "login: true [${Gatekeeper.VERSION}]",
+              secure: secure,
+            );
 
             _log('LOGIN');
 

@@ -3,6 +3,9 @@
 - `Gatekeeper`.
   - Added `VERSION`.
 
+- `gatekeeper_server`:
+  - `login`: also respond with the server version.
+
 ## 1.0.3
 
 - New `AESEncryptor` and `ChainAESEncryptor`.

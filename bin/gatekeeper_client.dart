@@ -32,10 +32,13 @@ void main(List<String> argsOrig) async {
 
   print('** Running: $client');
 
-  var logged = await client.login(accessKey);
-  if (!logged) {
+  var login = await client.login(accessKey);
+  if (!login.ok) {
     throw StateError("Login error!");
   }
+
+  print(
+      '-- Logged at `GatekeeperServer` @ $host:$port [${login.serverVersion}]');
 
   print('------------------------------------------------------');
 
