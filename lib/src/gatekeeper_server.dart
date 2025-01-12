@@ -178,11 +178,17 @@ class GatekeeperServer {
 
     var prev = _socketError[remoteAddress];
 
+    final now = DateTime.now();
+
+    int prevCount;
     if (prev != null) {
-      prev = _socketError[remoteAddress] = (prev.$1 + 1, DateTime.now());
+      var elapsedTime = now.difference(prev.$2);
+      prevCount = elapsedTime > blockingTime ? 0 : prev.$1;
     } else {
-      prev = _socketError[remoteAddress] = (1, DateTime.now());
+      prevCount = 0;
     }
+
+    prev = _socketError[remoteAddress] = (prevCount + 1, now);
 
     print('-- `Socket` $remoteAddress error count: $prev');
   }
