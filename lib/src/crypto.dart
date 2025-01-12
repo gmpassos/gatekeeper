@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
-import 'package:encrypt/encrypt.dart';
 
 import 'crypto_utils.dart' as crypto_utils;
 
@@ -14,7 +13,7 @@ class AESEncryptor {
 
   AESEncryptor(this.accessKey, {this.iterations = 100000});
 
-  final _iv = IV.fromBase64('HqgZTw7dj1w1lT2t/6qK9Q==');
+  final _iv = base64.decode('HqgZTw7dj1w1lT2t/6qK9Q==');
 
   Uint8List? _aesKey;
 
@@ -26,7 +25,7 @@ class AESEncryptor {
   Uint8List generateRandomAESKey({int? randomLength}) =>
       crypto_utils.generateRandomAESKey(randomLength: randomLength);
 
-  Uint8List deriveKey() => crypto_utils.deriveKey(accessKey, _iv.bytes,
+  Uint8List deriveKey() => crypto_utils.deriveKey(accessKey, _iv,
       iterations: iterations, keyLength: 32);
 
   String encryptMessage(String msg, Uint8List salt, {Uint8List? aesKey}) {
@@ -83,7 +82,7 @@ class ChainAESEncryptor {
     return ms;
   }
 
-  final _iv = IV.fromBase64('EII5Psj91EB0drW5C/Xpxg==');
+  final _iv = base64.decode('EII5Psj91EB0drW5C/Xpxg==');
 
   Uint8List? _salt;
   int _saltIdx = 0;
@@ -95,8 +94,8 @@ class ChainAESEncryptor {
   Uint8List _generateNextSalt() {
     var salt = _salt;
     if (salt == null) {
-      var iv0 = aesEncryptor._iv.bytes;
-      var iv1 = _iv.bytes;
+      var iv0 = aesEncryptor._iv;
+      var iv1 = _iv;
 
       var iv = Uint8List.fromList(
         List.generate(iv0.length, (i) => iv0[i] ^ iv1[i]),
@@ -117,8 +116,8 @@ class ChainAESEncryptor {
 
       return salt;
     } else {
-      var iv0 = aesEncryptor._iv.bytes;
-      var iv1 = _iv.bytes;
+      var iv0 = aesEncryptor._iv;
+      var iv1 = _iv;
       ++_saltIdx;
 
       var iv = Uint8List.fromList(
