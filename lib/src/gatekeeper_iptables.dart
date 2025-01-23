@@ -292,7 +292,7 @@ class GatekeeperIpTables extends GatekeeperDriver {
         RegExp(r'ACCEPT\s+(?:tcp|6|4)\s+--\s+\*\s+\*\s+(\S+)');
     final regExpPort = RegExp(r'dpt:(\d\d+)');
 
-    var ok = false;
+    var anyCmdOK = false;
 
     for (final line in output.split('\n')) {
       if (line.contains('ACCEPT')) {
@@ -317,9 +317,9 @@ class GatekeeperIpTables extends GatekeeperDriver {
                 expectedExitCode: 0,
               );
 
-              var cmdOk = output?.isNotEmpty ?? false;
+              var cmdOk = output != null;
               if (cmdOk) {
-                ok = true;
+                anyCmdOK = true;
               }
             }
           }
@@ -327,7 +327,20 @@ class GatekeeperIpTables extends GatekeeperDriver {
       }
     }
 
-    return ok;
+    if (!anyCmdOK) return false;
+
+    bool accepted;
+    if (port != null) {
+      accepted = await isAcceptedAddressOnPort(address, port,
+          sudo: sudo,
+          allowedPorts: allowAllPorts ? null : (allowedPorts ?? {}));
+    } else {
+      accepted = await isAcceptedAddress(address,
+          sudo: sudo,
+          allowedPorts: allowAllPorts ? null : (allowedPorts ?? {}));
+    }
+
+    return !accepted;
   }
 
   @override
