@@ -615,6 +615,14 @@ class _SocketHandler {
           }
         }
 
+      case 'myip':
+        {
+          var ip = remoteAddress;
+          _sendResponse("ip: $ip", secure: secure);
+
+          _log('IP: $ip');
+        }
+
       case 'disconnect':
         {
           _sendResponse("disconnect: true", secure: secure);
