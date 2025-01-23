@@ -1,1 +1,1 @@
-const gatekeeperVersion = '1.0.9';
+const gatekeeperVersion = '1.0.10';

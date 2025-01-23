@@ -1,3 +1,11 @@
+## 1.0.10
+
+- `GatekeeperDriver`:
+  - Added `isAcceptedAddress`.
+
+- `GatekeeperIpTables`:
+  - `unacceptAddressOnTCPPort`: checks if the address is "unaccepted" for return value.
+
 ## 1.0.9
 
 - `GatekeeperClient`:
