@@ -482,6 +482,28 @@ class GatekeeperClient {
           return true;
         }
 
+      case 'myip':
+        {
+          var ip = await myIP();
+          print('-- My IP: $ip');
+
+          return true;
+        }
+
+      case 'my':
+        {
+          var type = parts.length > 1 ? parts[1].trim().toLowerCase() : '';
+
+          if (type == 'ip') {
+            var ip = await myIP();
+            print('-- My IP: $ip');
+
+            return true;
+          }
+
+          return false;
+        }
+
       case 'exit':
         {
           var ok = await disconnect();
