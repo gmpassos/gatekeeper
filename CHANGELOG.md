@@ -1,3 +1,14 @@
+## 1.0.8
+
+- `GatekeeperIpTables`:
+  - `unacceptAddressOnTCPPort`: handle `iptables` output for IPv6.
+
+- `GatekeeperClient`:
+  - Added `myIP`.
+
+- `GatekeeperServer`:
+  - Process command `myip`.
+
 ## 1.0.7
 
 - `GatekeeperDriver`:
