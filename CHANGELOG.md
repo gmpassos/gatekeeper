@@ -7,7 +7,7 @@
   - `unacceptAddressOnTCPPort`: checks if the address is "unaccepted" for return value.
 
 - `bin/gatekeeper.dart`:
-  - Parameter `access-key`: allow value `.` to read from `stdin`.
+  - Parameter `access-key`: allow value `-` or `.` to read from `stdin`.
 
 ## 1.0.9
 
