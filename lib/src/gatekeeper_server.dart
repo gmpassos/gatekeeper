@@ -621,6 +621,8 @@ class _SocketHandler {
           _sendResponse("ip: $ip", secure: secure);
 
           _log('IP: $ip');
+
+          return true;
         }
 
       case 'disconnect':
