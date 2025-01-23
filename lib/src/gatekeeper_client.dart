@@ -346,6 +346,17 @@ class GatekeeperClient {
     return response?.contains('true') ?? false;
   }
 
+  /// Retrieves the IP address of this client as seen by the remote server.
+  Future<String?> myIP() async {
+    var response = await _sendCommand("myip .");
+    if (response == null || response.isEmpty) return null;
+
+    var match = RegExp(r'ip:\s+(\S+)').firstMatch(response);
+    var ip = match?.group(1);
+
+    return ip;
+  }
+
   /// Processes a command entered by the user.
   ///
   /// - [command]: The command line to execute.
