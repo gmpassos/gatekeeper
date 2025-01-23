@@ -23,7 +23,7 @@ void main(List<String> argsOrig) async {
     accessKey = stdin.readLineSync()?.trim();
   }
 
-  if (accessKey == '.') {
+  if (accessKey == '-' || accessKey == '.') {
     accessKey = stdin.readLineSync()?.trim();
   }
 
