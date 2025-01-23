@@ -23,8 +23,13 @@ void main(List<String> argsOrig) async {
     accessKey = stdin.readLineSync()?.trim();
   }
 
+  if (accessKey == '.') {
+    accessKey = stdin.readLineSync()?.trim();
+  }
+
   if (accessKey == null || accessKey.length < 32) {
-    throw ArgumentError("Invalid access-key> length: ${accessKey?.length}");
+    throw ArgumentError(
+        "Invalid access-key> length: ${accessKey?.length} < 32");
   }
 
   var allowedPorts = args
