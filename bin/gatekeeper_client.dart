@@ -17,7 +17,7 @@ void main(List<String> argsOrig) async {
 
   final client = GatekeeperClient(host, port, verbose: verbose);
 
-  print('[Gatekeeper - Client]\n');
+  print('[Gatekeeper - Client / $gatekeeperVersion]\n');
 
   stdout.write('Access-Key: ');
   var accessKey = stdin.readLineSync()?.trim();

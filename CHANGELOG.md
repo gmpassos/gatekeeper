@@ -1,3 +1,8 @@
+## 1.0.9
+
+- `GatekeeperClient`:
+  - `processCommand`: process command `myip`.
+
 ## 1.0.8
 
 - `GatekeeperIpTables`:
