@@ -54,7 +54,7 @@ void main(List<String> argsOrig) async {
 }
 
 void _showHelp() {
-  print('[Gatekeeper - Client]\n');
+  print('[Gatekeeper - Client / $gatekeeperVersion]\n');
   print('USAGE:');
   print('  gatekeeper_client %host %port --access-key %key-length-32+');
   print('');

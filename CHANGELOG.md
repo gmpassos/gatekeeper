@@ -1,3 +1,11 @@
+## 1.0.7
+
+- `GatekeeperDriver`:
+  - `listAcceptedAddressesOnTCPPorts`: handle `iptables` output for IPv6.
+
+- `bin/gatekeeper.dart`, `bin/gatekeeper_client.dart`:
+  - Show version (`$gatekeeperVersion`).
+
 ## 1.0.6
 
 - `SocketHandler`:

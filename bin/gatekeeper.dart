@@ -65,7 +65,7 @@ void main(List<String> argsOrig) async {
 }
 
 void _showHelp() {
-  print('[Gatekeeper - Server]\n');
+  print('[Gatekeeper - Server / $gatekeeperVersion]\n');
   print('USAGE:');
   print(
       '  gatekeeper --port %port --access-key %key-length-32+ --allowed-ports %p1,%p2,%p3 -allow-all-ports');
