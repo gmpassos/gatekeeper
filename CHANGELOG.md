@@ -1,3 +1,10 @@
+## 1.0.11
+
+- `GatekeeperIpTables`:
+  - Extracted port validation into `_checkValidPort` (ports 10–65535).
+  - Added `_checkAddress` and `_normalizeAddress` to validate and sanitize IP addresses.
+  - Replaced repeated inline checks with these helpers for cleaner, safer code.
+
 ## 1.0.10
 
 - `GatekeeperDriver`:

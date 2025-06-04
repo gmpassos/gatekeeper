@@ -104,9 +104,7 @@ class GatekeeperIpTables extends GatekeeperDriver {
       {bool sudo = false,
       required Set<int>? allowedPorts,
       required bool allowAllPorts}) async {
-    if (port < 10) {
-      throw ArgumentError("Invalid port: $port");
-    }
+    _checkValidPort(port);
 
     if (!allowAllPorts &&
         (allowedPorts == null || !allowedPorts.contains(port))) {
@@ -146,9 +144,7 @@ class GatekeeperIpTables extends GatekeeperDriver {
       {bool sudo = false,
       required Set<int>? allowedPorts,
       required bool allowAllPorts}) async {
-    if (port < 10) {
-      throw ArgumentError("Invalid port: $port");
-    }
+    _checkValidPort(port);
 
     if (!allowAllPorts &&
         (allowedPorts == null || !allowedPorts.contains(port))) {
@@ -231,9 +227,8 @@ class GatekeeperIpTables extends GatekeeperDriver {
       {bool sudo = false,
       required Set<int>? allowedPorts,
       required bool allowAllPorts}) async {
-    if (port < 10) {
-      throw ArgumentError("Invalid port: $port");
-    }
+    _checkValidPort(port);
+    address = _checkAddress(address);
 
     if (!allowAllPorts &&
         (allowedPorts == null || !allowedPorts.contains(port))) {
@@ -276,6 +271,8 @@ class GatekeeperIpTables extends GatekeeperDriver {
       {bool sudo = false,
       required Set<int>? allowedPorts,
       required bool allowAllPorts}) async {
+    address = _checkAddress(address);
+
     final iptablesBin = await resolveBinaryPathCached('iptables');
     final iptablesArgs = <String>['-L', 'INPUT', '-n', '-v', '--line-numbers'];
 
@@ -351,4 +348,37 @@ class GatekeeperIpTables extends GatekeeperDriver {
 
   @override
   String toString() => 'GatekeeperIpTables{}';
+}
+
+void _checkValidPort(int port) {
+  if (!_isValidPort(port)) {
+    throw ArgumentError("Invalid port: $port");
+  }
+}
+
+bool _isValidPort(int port) => port >= 10 && port <= 65535;
+
+String _checkAddress(String address) {
+  var address2 = _normalizeAddress(address);
+  if (address2 == null) {
+    throw ArgumentError("Invalid address: $address");
+  }
+  return address2;
+}
+
+String? _normalizeAddress(String? address) {
+  if (address == null) return null;
+  address = address.trim();
+  if (address.isEmpty) return null;
+
+  // If has any invalid character:
+  if (RegExp(r'[^0-9a-fA-F:.]').hasMatch(address)) {
+    return null;
+  }
+
+  if (address.contains('..')) {
+    return null;
+  }
+
+  return address;
 }
