@@ -1,5 +1,6 @@
 import 'package:gatekeeper/gatekeeper_client.dart';
 import 'package:gatekeeper/gatekeeper_server.dart';
+import 'package:gatekeeper/src/gatekeeper_ipc_client.dart';
 import 'package:test/test.dart';
 
 const accessKey = '0123456789abcdefghijklmnopqrstuvwxyz';
@@ -47,6 +48,8 @@ Future<void> _testServer({required bool secure, int? ipcPort}) async {
 
     expect(await clientNotLogged.connect(), isTrue);
 
+    print("clientNotLogged> $clientNotLogged");
+
     if (secure) {
       expect(
         () => clientNotLogged.listBlockedTCPPorts(),
@@ -80,6 +83,8 @@ Future<void> _testServer({required bool secure, int? ipcPort}) async {
   expect(await client.connect(), isTrue);
 
   expect(client.isConnected, isTrue);
+
+  print("client> $client");
 
   var login = await client.login(accessKey);
   expect(login.ok, isTrue);
@@ -136,6 +141,42 @@ Future<void> _testServer({required bool secure, int? ipcPort}) async {
 
   client.close();
   expect(client.isConnected, isFalse);
+
+  // IPC:
+  if (ipcPort != null) {
+    var ipcClient = GatekeeperIPCClient('localhost', ipcPort);
+
+    expect(await ipcClient.connect(), isTrue);
+
+    expect(ipcClient.isConnected, isTrue);
+
+    print("ipcClient> $ipcClient");
+
+    expect(await ipcClient.listBlockedIPs(), isEmpty);
+
+    expect(await ipcClient.blockIP('192.10.11.11'), isTrue);
+
+    expect(await ipcClient.listBlockedIPs(), equals(['192.10.11.11']));
+
+    expect(await ipcClient.blockIP('192.10.11.12'), isTrue);
+
+    expect(await ipcClient.listBlockedIPs(),
+        equals(['192.10.11.11', '192.10.11.12']));
+
+    expect(await ipcClient.unblockIP('192.10.11.11'), isTrue);
+
+    expect(await ipcClient.listBlockedIPs(), equals(['192.10.11.12']));
+
+    expect(await ipcClient.unblockIP('192.10.11.13'), isFalse);
+
+    expect(await ipcClient.listBlockedIPs(), equals(['192.10.11.12']));
+
+    expect(await ipcClient.unblockIP('192.10.11.12'), isTrue);
+
+    expect(await ipcClient.listBlockedIPs(), isEmpty);
+  }
+
+  // CLOSE
 
   gatekeeperServer.close();
   expect(gatekeeperServer.isStarted, isFalse);
