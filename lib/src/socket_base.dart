@@ -270,3 +270,118 @@ abstract class SocketHandlerBase<S extends SocketServerBase> {
     allData.clear();
   }
 }
+
+abstract class SocketClientBase {
+  /// The host (IP address or hostname) of the server.
+  final String host;
+
+  /// The port on which the server is listening.
+  final int port;
+
+  final bool verbose;
+
+  /// Creates a new [SocketClient] instance.
+  ///
+  /// - [host]: The host address of the server.
+  /// - [port]: The port number on which the server is listening.
+  SocketClientBase(this.host, this.port, {this.verbose = false});
+
+  Socket? _socket;
+
+  String? get remoteAddress => _socket?.remoteAddress.address;
+  int? get remotePort => _socket?.remotePort;
+
+  /// A flag indicating whether the client is connected to the server.
+  bool get isConnected => _socket != null;
+
+  Uint8List _receivedData = Uint8List(0);
+
+  Completer<Uint8List?>? _waitingData;
+
+  /// Connects to the server.
+  ///
+  /// Returns a [Future] that completes with `true` if the connection was successful,
+  /// or `false` if already connected.
+  Future<bool> connect() async {
+    if (isConnected) return false;
+    var socket = _socket = await Socket.connect(host, port);
+
+    socket.listen(_onData, cancelOnError: true, onDone: _onClose);
+
+    return true;
+  }
+
+  void _onClose() {
+    close();
+  }
+
+  void _onData(Uint8List data) {
+    var fullData = _receivedData = _receivedData.merge(data);
+
+    final waitingData = _waitingData;
+    if (waitingData != null) {
+      if (waitingData.isCompleted) {
+        _waitingData = null;
+        return;
+      }
+
+      var idx = fullData.indexOf(10);
+      if (idx < 0) {
+        return;
+      }
+
+      var response = fullData.sublist(0, idx);
+      _receivedData = fullData.sublist(idx + 1);
+
+      _waitingData = null;
+      waitingData.complete(response);
+    }
+  }
+
+  Socket _connectedSocket() =>
+      _socket ?? (throw StateError("`Socket` not connected!"));
+
+  Future<String?> sendCommand(String command,
+      {Duration responseTimeout = const Duration(seconds: 30)}) async {
+    final socket = _connectedSocket();
+
+    var waitingData = _waitingData;
+    while (waitingData != null) {
+      await waitingData.future;
+      waitingData = _waitingData;
+    }
+
+    waitingData = _waitingData = Completer<Uint8List?>();
+
+    socket.writeln(command);
+
+    var response = await waitingData.future
+        .timeout(responseTimeout, onTimeout: () => null);
+
+    if (identical(waitingData, _waitingData)) {
+      _waitingData = null;
+    }
+
+    String? responseMsg;
+    if (response != null) {
+      responseMsg = latin1.decode(response);
+    }
+
+    return responseMsg;
+  }
+
+  /// Closes the connection to the server.
+  void close() {
+    _socket?.close();
+    _socket = null;
+    _receivedData = Uint8List(0);
+
+    var waitingData = _waitingData;
+    if (waitingData != null) {
+      if (!waitingData.isCompleted) {
+        waitingData.complete(null);
+      }
+      _waitingData = null;
+    }
+  }
+}
