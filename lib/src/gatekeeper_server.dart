@@ -10,6 +10,7 @@ import 'package:crypto/crypto.dart';
 import 'crypto.dart';
 import 'crypto_utils.dart';
 import 'gatekeeper_base.dart';
+import 'gatekeeper_ipc.dart';
 import 'socket_base.dart';
 
 /// The [GatekeeperServer] class represents a server that interacts with a [Gatekeeper]
@@ -45,6 +46,10 @@ class GatekeeperServer extends SocketServerBase {
   /// after exceeding the login error limit.
   final Duration blockingTime;
 
+  /// The IPC server (optional).
+  /// See `ipcPort` on [GatekeeperServer] constructor.
+  late final GateKeeperIPCServer? ipcServer;
+
   /// Creates a [GatekeeperServer] instance.
   ///
   /// - [gatekeeper]: the [Gatekeeper] instance.
@@ -59,6 +64,8 @@ class GatekeeperServer extends SocketServerBase {
       Object? address,
       int? loginErrorLimit,
       Duration? blockingTime,
+      int? ipcPort,
+      bool? ipc,
       super.verbose = false})
       : address = address ?? InternetAddress.anyIPv4,
         loginErrorLimit = normalizeLoginErrorLimit(loginErrorLimit),
@@ -67,6 +74,16 @@ class GatekeeperServer extends SocketServerBase {
       throw ArgumentError(
           "Invalid `accessKey` length: ${accessKey.length} < 32");
     }
+
+    ipc ??= ipcPort != null && ipcPort > 0;
+
+    ipcServer = ipc
+        ? GateKeeperIPCServer(
+            gatekeeper,
+            listenPort: ipcPort,
+            verbose: verbose,
+          )
+        : null;
 
     accessKeyHash = hashAccessKey(accessKey);
   }
@@ -97,6 +114,15 @@ class GatekeeperServer extends SocketServerBase {
       throw StateError("Can't resolve `Gatekeeper`");
     }
 
+    final ipcServer = this.ipcServer;
+    if (ipcServer != null) {
+      var ipcOk = await ipcServer.start();
+      if (!ipcOk) {
+        close();
+        throw StateError("Can't start IPC server: $ipcServer");
+      }
+    }
+
     return true;
   }
 
@@ -105,6 +131,12 @@ class GatekeeperServer extends SocketServerBase {
     var server = await ServerSocket.bind(address, listenPort);
     server.listen(_onAcceptSocket);
     return server;
+  }
+
+  @override
+  void close() {
+    super.close();
+    ipcServer?.close();
   }
 
   late final AESEncryptor _aesEncryptor = AESEncryptor(accessKey);
