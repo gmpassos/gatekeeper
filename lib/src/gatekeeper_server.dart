@@ -10,7 +10,7 @@ import 'package:crypto/crypto.dart';
 import 'crypto.dart';
 import 'crypto_utils.dart';
 import 'gatekeeper_base.dart';
-import 'gatekeeper_ipc.dart';
+import 'gatekeeper_ipc_server.dart';
 import 'socket_base.dart';
 
 /// The [GatekeeperServer] class represents a server that interacts with a [Gatekeeper]
