@@ -66,6 +66,22 @@ class _SocketHandler extends SocketHandlerBase<GateKeeperIPCServer> {
   @override
   Future<bool?> processCommand(String cmd, String args) async {
     switch (cmd) {
+      case 'list':
+        {
+          if (args == 'blocked_ips') {
+            var blockedIPs = await gatekeeper.listBlockedIPs();
+
+            _sendResponse("blocked_ips: ${blockedIPs.join('; ')}");
+
+            log('List blocked IPs.');
+
+            return true;
+          } else {
+            close();
+            return null;
+          }
+        }
+
       case 'block_ip':
         {
           var ip = args.trim();
