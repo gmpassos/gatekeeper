@@ -1,3 +1,14 @@
+## 1.0.12
+
+- New `SocketServerBase` and `SocketHandlerBase`.
+
+- `GatekeeperServer`: extends SocketServerBase.
+
+- New `GateKeeperIRPCServer`.
+
+- `Gatekeeper`, `GatekeeperDriver`:
+  - Added `listBlockedIPs`, `blockIP` and `unblockIP`.
+
 ## 1.0.11
 
 - `GatekeeperIpTables`:
