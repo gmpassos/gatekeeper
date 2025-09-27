@@ -44,6 +44,13 @@ class Gatekeeper {
       : allowedPorts =
             allowedPorts != null ? Set.unmodifiable(allowedPorts) : null;
 
+  /// Lists all currently blocked IP addresses.
+  ///
+  /// Returns a [Future] that completes with a [Set] of blocked IP addresses.
+  Future<Set<String>> listBlockedIPs() {
+    return driver.listBlockedIPs(sudo: sudo);
+  }
+
   /// Blocks network traffic from a specific IP address.
   ///
   /// - [ip]: The IP address to be blocked.
