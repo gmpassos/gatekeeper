@@ -75,13 +75,13 @@ abstract class SocketHandlerBase<S extends SocketServerBase> {
 
   SocketHandlerBase(this.socket, this.server,
       {this.minRequestLength = 4, this.maxRequestLength = 1024}) {
+    remoteAddress = socket.remoteAddress.address;
+    remotePort = socket.remotePort;
+
     if (server.isSocketAddressBlocked(this)) {
       close();
       logError("Blocked address: $remoteAddress");
     } else {
-      remoteAddress = socket.remoteAddress.address;
-      remotePort = socket.remotePort;
-
       _socketSubscription =
           socket.listen(_onData, onError: onError, onDone: _onClose);
 
