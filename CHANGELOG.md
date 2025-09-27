@@ -5,7 +5,7 @@
 - `GatekeeperServer`: extends `SocketServerBase`.
 - `GatekeeperClient`: extends `SocketClientBase`.
 
-- New `GateKeeperIPCServer`.
+- New `GateKeeperIPCServer` and `GatekeeperIPCClient`.
 
 - `Gatekeeper`, `GatekeeperDriver`:
   - Added `listBlockedIPs`, `blockIP` and `unblockIP`.
