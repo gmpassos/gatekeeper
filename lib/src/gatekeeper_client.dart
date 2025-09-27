@@ -6,7 +6,7 @@ import 'dart:typed_data';
 import 'crypto.dart';
 import 'crypto_utils.dart' as crypto_utils;
 import 'gatekeeper_const.dart';
-import 'utils.dart';
+import 'socket_base.dart';
 
 /// The [GatekeeperClient] class allows a client to connect to a [GatekeeperServer]
 /// and interact with it by sending commands such as login, listing blocked TCP ports,
@@ -20,76 +20,15 @@ import 'utils.dart';
 /// await client.login('accessKey123');
 /// await client.listBlockedTCPPorts();
 /// ```
-class GatekeeperClient {
-  /// The host (IP address or hostname) of the [GatekeeperServer].
-  final String host;
-
-  /// The port on which the [GatekeeperServer] is listening.
-  final int port;
-
+class GatekeeperClient extends SocketClientBase {
   /// If `true` use a secure layer for communication.
   final bool secure;
-
-  final bool verbose;
 
   /// Creates a new [GatekeeperClient] instance.
   ///
   /// - [host]: The host address of the [GatekeeperServer].
   /// - [port]: The port number on which the [GatekeeperServer] is listening.
-  GatekeeperClient(this.host, this.port,
-      {this.secure = true, this.verbose = false});
-
-  Socket? _socket;
-
-  /// A flag indicating whether the client is connected to the server.
-  bool get isConnected => _socket != null;
-
-  Uint8List _receivedData = Uint8List(0);
-
-  Completer<Uint8List?>? _waitingData;
-
-  /// Connects to the Gatekeeper server.
-  ///
-  /// Returns a [Future] that completes with `true` if the connection was successful,
-  /// or `false` if already connected.
-  Future<bool> connect() async {
-    if (isConnected) return false;
-    var socket = _socket = await Socket.connect(host, port);
-
-    socket.listen(_onData, cancelOnError: true, onDone: _onClose);
-
-    return true;
-  }
-
-  void _onClose() {
-    close();
-  }
-
-  void _onData(Uint8List data) {
-    var fullData = _receivedData = _receivedData.merge(data);
-
-    final waitingData = _waitingData;
-    if (waitingData != null) {
-      if (waitingData.isCompleted) {
-        _waitingData = null;
-        return;
-      }
-
-      var idx = fullData.indexOf(10);
-      if (idx < 0) {
-        return;
-      }
-
-      var response = fullData.sublist(0, idx);
-      _receivedData = fullData.sublist(idx + 1);
-
-      _waitingData = null;
-      waitingData.complete(response);
-    }
-  }
-
-  Socket _connectedSocket() =>
-      _socket ?? (throw StateError("`Socket` not connected!"));
+  GatekeeperClient(super.host, super.port, {this.secure = true, super.verbose});
 
   AESEncryptor? _aesEncryptor;
 
@@ -102,47 +41,35 @@ class GatekeeperClient {
       _chainAESEncryptor ??= ChainAESEncryptor(
         aesEncryptor,
         server: false,
-        seed1: (_socket ?? (throw StateError("Null `_socket`"))).remotePort,
+        seed1: (remotePort ?? (throw StateError("Null `Socket`"))),
       );
 
-  Future<String?> _sendCommand(String command) async {
-    final socket = _connectedSocket();
-
+  @override
+  Future<String?> sendCommand(String command,
+      {Duration responseTimeout = const Duration(seconds: 30)}) async {
     if (secure) {
       var enc = chainAESEncryptor.encryptMessage(command);
       command = '_: $enc';
     }
 
-    var waitingData = _waitingData;
-    while (waitingData != null) {
-      await waitingData.future;
-      waitingData = _waitingData;
+    var responseMsg = await super.sendCommand(command);
+
+    if (responseMsg != null && secure) {
+      responseMsg = _decryptMsg(responseMsg);
     }
 
-    waitingData = _waitingData = Completer<Uint8List?>();
+    return responseMsg;
+  }
 
-    socket.writeln(command);
-
-    var response = await waitingData.future
-        .timeout(Duration(seconds: 30), onTimeout: () => null);
-
-    if (identical(waitingData, _waitingData)) {
-      _waitingData = null;
+  String? _decryptMsg(String responseMsg) {
+    if (secure && !responseMsg.startsWith('_: ')) {
+      close();
+      throw StateError("Insecure Server!");
     }
 
-    String? responseMsg;
-    if (response != null) {
-      responseMsg = latin1.decode(response);
-
-      if (secure && !responseMsg.startsWith('_: ')) {
-        close();
-        throw StateError("Insecure Server!");
-      }
-
-      if (responseMsg.startsWith('_: ')) {
-        var encryptedMsg = responseMsg.substring(3);
-        responseMsg = chainAESEncryptor.decryptMessage(encryptedMsg);
-      }
+    if (responseMsg.startsWith('_: ')) {
+      var encryptedMsg = responseMsg.substring(3);
+      responseMsg = chainAESEncryptor.decryptMessage(encryptedMsg);
     }
 
     return responseMsg;
@@ -174,7 +101,7 @@ class GatekeeperClient {
     var accessKeyHash = hashAccessKey(accessKey, sessionKey: sessionKey);
     var accessKeyBase64 = base64.encode(accessKeyHash);
 
-    var response = await _sendCommand("login $accessKeyBase64");
+    var response = await sendCommand("login $accessKeyBase64");
 
     var logged = false;
     String? serverVersion;
@@ -207,7 +134,7 @@ class GatekeeperClient {
     var exchangeKeyEncryptedStr =
         String.fromCharCodes(exchange.exchangeKeyEncrypted);
 
-    var response = await _sendCommand(exchangeKeyEncryptedStr);
+    var response = await sendCommand(exchangeKeyEncryptedStr);
     if (response == null) {
       close();
       return false;
@@ -245,7 +172,7 @@ class GatekeeperClient {
   ///
   /// Returns a [Future] that completes with a [Set] of blocked ports.
   Future<Set<int>> listBlockedTCPPorts() async {
-    var response = await _sendCommand("list ports");
+    var response = await sendCommand("list ports");
     if (response == null) return {};
 
     response = response.split(':')[1];
@@ -267,7 +194,7 @@ class GatekeeperClient {
   /// Returns a [Future] that completes with `true` if the port was successfully blocked,
   /// or `false` if it failed.
   Future<bool> blockTCPPort(int port) async {
-    var response = await _sendCommand("block $port");
+    var response = await sendCommand("block $port");
     return response?.contains('true') ?? false;
   }
 
@@ -278,7 +205,7 @@ class GatekeeperClient {
   /// Returns a [Future] that completes with `true` if the port was successfully unblocked,
   /// or `false` if it failed.
   Future<bool> unblockTCPPort(int port) async {
-    var response = await _sendCommand("unblock $port");
+    var response = await sendCommand("unblock $port");
     return response?.contains('true') ?? false;
   }
 
@@ -287,7 +214,7 @@ class GatekeeperClient {
   /// Returns a [Future] that completes with a [Set] of `({String address, int port}` entries.
   Future<Set<({String address, int port})>>
       listAcceptedAddressesOnTCPPorts() async {
-    var response = await _sendCommand("list accepts");
+    var response = await sendCommand("list accepts");
     if (response == null) return {};
 
     var entries = response
@@ -321,7 +248,7 @@ class GatekeeperClient {
   Future<bool> acceptAddressOnTCPPort(String address, int port) async {
     address = address.trim();
     if (address.isEmpty) return false;
-    var response = await _sendCommand("accept $address $port");
+    var response = await sendCommand("accept $address $port");
     return response?.contains('true') ?? false;
   }
 
@@ -335,20 +262,20 @@ class GatekeeperClient {
   Future<bool> unacceptAddressOnTCPPort(String address, int? port) async {
     address = address.trim();
     if (address.isEmpty) return false;
-    var response = await _sendCommand("unaccept $address $port");
+    var response = await sendCommand("unaccept $address $port");
     return response?.contains('true') ?? false;
   }
 
   /// Send a disconnect command, remotely closing the [Socket].
   /// Used by `exit` command. See [processCommand].
   Future<bool> disconnect() async {
-    var response = await _sendCommand("disconnect socket");
+    var response = await sendCommand("disconnect socket");
     return response?.contains('true') ?? false;
   }
 
   /// Retrieves the IP address of this client as seen by the remote server.
   Future<String?> myIP() async {
-    var response = await _sendCommand("myip .");
+    var response = await sendCommand("myip .");
     if (response == null || response.isEmpty) return null;
 
     var match = RegExp(r'ip:\s+(\S+)').firstMatch(response);
@@ -517,21 +444,6 @@ class GatekeeperClient {
           print('** Unknown command: `$cmd`');
           return false;
         }
-    }
-  }
-
-  /// Closes the connection to the server.
-  void close() {
-    _socket?.close();
-    _socket = null;
-    _receivedData = Uint8List(0);
-
-    var waitingData = _waitingData;
-    if (waitingData != null) {
-      if (!waitingData.isCompleted) {
-        waitingData.complete(null);
-      }
-      _waitingData = null;
     }
   }
 
