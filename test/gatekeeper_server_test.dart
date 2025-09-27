@@ -11,10 +11,16 @@ void main() {
 
     test('allowedPorts: {2223, 2224} ; GatekeeperClient (secure)',
         () => _testServer(secure: true));
+
+    test('allowedPorts: {2223, 2224} ; GatekeeperClient (ipc)',
+        () => _testServer(secure: false, ipcPort: 2127));
+
+    test('allowedPorts: {2223, 2224} ; GatekeeperClient (secure, ipc)',
+        () => _testServer(secure: true, ipcPort: 2127));
   });
 }
 
-Future<void> _testServer({required bool secure}) async {
+Future<void> _testServer({required bool secure, int? ipcPort}) async {
   final listenPort = 2243;
 
   final driver = GatekeeperMock(verbose: true);
@@ -23,8 +29,13 @@ Future<void> _testServer({required bool secure}) async {
     Gatekeeper(driver: driver, allowedPorts: {2223, 2224}),
     listenPort: listenPort,
     accessKey: accessKey,
+    ipcPort: ipcPort,
     verbose: true,
   );
+
+  expect(gatekeeperServer.ipcServer, ipcPort == null ? isNull : isNotNull);
+
+  expect(gatekeeperServer.ipcServer?.listenPort, equals(ipcPort));
 
   expect(await gatekeeperServer.start(), isTrue);
 
