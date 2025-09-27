@@ -44,6 +44,26 @@ class Gatekeeper {
       : allowedPorts =
             allowedPorts != null ? Set.unmodifiable(allowedPorts) : null;
 
+  /// Blocks network traffic from a specific IP address.
+  ///
+  /// - [ip]: The IP address to be blocked.
+  ///
+  /// Returns a [Future] that completes with `true` if the IP was successfully blocked,
+  /// or `false` if the operation failed.
+  Future<bool>  blockIP(String ip) {
+    return driver.blockIP(ip);
+  }
+
+  /// Unblocks network traffic from a specific IP address.
+  ///
+  /// - [ip]: The IP address to be unblocked.
+  ///
+  /// Returns a [Future] that completes with `true` if the IP was successfully unblocked,
+  /// or `false` if the operation failed.
+  Future<bool>  unblockIP(String ip) {
+    return driver.unblockIP(ip);
+  }
+
   /// Lists all the currently blocked TCP ports.
   ///
   /// Returns a [Future] that completes with a [Set] of blocked TCP ports.
@@ -161,6 +181,29 @@ abstract class GatekeeperDriver {
   /// Returns a [Future] that completes with the command's output as a [String].
   Future<String?> runCommand(String binaryPath, List<String> args,
       {bool sudo = false, int? expectedExitCode});
+
+  /// Lists all currently blocked IP addresses.
+  ///
+  /// - [sudo]: A flag indicating if sudo privileges should be used. Defaults to `false`.
+  ///
+  /// Returns a [Future] that completes with a [Set] of blocked IP addresses.
+  Future<Set<String>> listBlockedIPs({bool sudo = false});
+
+  /// Blocks network traffic from a specific IP address.
+  ///
+  /// - [ip]: The IP address to be blocked.
+  ///
+  /// Returns a [Future] that completes with `true` if the IP was successfully blocked,
+  /// or `false` if the operation failed.
+  Future<bool> blockIP(String ip) ;
+
+  /// Unblocks network traffic from a specific IP address.
+  ///
+  /// - [ip]: The IP address to be unblocked.
+  ///
+  /// Returns a [Future] that completes with `true` if the IP was successfully unblocked,
+  /// or `false` if the operation failed.
+  Future<bool> unblockIP(String ip) ;
 
   /// Lists all the currently blocked TCP ports.
   ///

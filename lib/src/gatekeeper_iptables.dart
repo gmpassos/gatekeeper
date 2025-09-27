@@ -61,6 +61,107 @@ class GatekeeperIpTables extends GatekeeperDriver {
   }
 
   @override
+  Future<Set<String>> listBlockedIPs({bool sudo = false}) async {
+    final iptablesBin = await resolveBinaryPathCached('iptables');
+    final iptablesArgs = <String>['-L', 'INPUT', '-n', '-v'];
+
+    var output = await runCommand(
+      iptablesBin,
+      iptablesArgs,
+      sudo: sudo,
+      expectedExitCode: 0,
+    );
+
+    if (output == null || output.isEmpty) return {};
+
+    final regExpIP = RegExp(r'('
+        r'(?:\d{1,3}\.){3}\d{1,3}'
+        r'|'
+        r'([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}'
+        r')\b');
+
+    final blockedIPs = <String>{};
+
+    for (final line in output.split('\n')) {
+      // Only DROP/REJECT lines without "dpt:" (port-specific)
+      if ((line.contains('DROP') || line.contains('REJECT')) &&
+          !line.contains('dpt:')) {
+        final match = regExpIP.firstMatch(line);
+        if (match != null) {
+          blockedIPs.add(match.group(0)!);
+        }
+      }
+    }
+
+    return blockedIPs;
+  }
+
+  static final _regexpIP = RegExp(
+      r'^((?:\d{1,3}\.){3}\d{1,3}|([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4})$');
+
+  @override
+  Future<bool> blockIP(String ip, {bool sudo = false}) async {
+    if (!_regexpIP.hasMatch(ip)) {
+      throw ArgumentError('Invalid IP address: $ip');
+    }
+
+    final iptablesBin = await resolveBinaryPathCached('iptables');
+    final iptablesArgs = <String>[
+      '-A',
+      'INPUT',
+      '-s',
+      ip,
+      '-j',
+      'DROP',
+    ];
+
+    var output = await runCommand(
+      iptablesBin,
+      iptablesArgs,
+      sudo: sudo,
+      expectedExitCode: 0,
+    );
+
+    if (output == null) {
+      return false;
+    }
+
+    var blockedIPs = await listBlockedIPs(sudo: sudo);
+    return blockedIPs.contains(ip);
+  }
+
+  @override
+  Future<bool> unblockIP(String ip, {bool sudo = false}) async {
+    if (!_regexpIP.hasMatch(ip)) {
+      throw ArgumentError('Invalid IP address: $ip');
+    }
+
+    final iptablesBin = await resolveBinaryPathCached('iptables');
+    final iptablesArgs = <String>[
+      '-D',
+      'INPUT',
+      '-s',
+      ip,
+      '-j',
+      'DROP',
+    ];
+
+    var output = await runCommand(
+      iptablesBin,
+      iptablesArgs,
+      sudo: sudo,
+      expectedExitCode: 0,
+    );
+
+    if (output == null) {
+      return false;
+    }
+
+    var blockedIPs = await listBlockedIPs(sudo: sudo);
+    return !blockedIPs.contains(ip);
+  }
+
+  @override
   Future<Set<int>> listBlockedTCPPorts(
       {bool sudo = false, Set<int>? allowedPorts}) async {
     final iptablesBin = await resolveBinaryPathCached('iptables');
