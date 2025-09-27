@@ -45,8 +45,6 @@ class GatekeeperServer extends SocketServerBase {
   /// after exceeding the login error limit.
   final Duration blockingTime;
 
-
-
   /// Creates a [GatekeeperServer] instance.
   ///
   /// - [gatekeeper]: the [Gatekeeper] instance.
@@ -104,7 +102,7 @@ class GatekeeperServer extends SocketServerBase {
 
   @override
   Future<ServerSocket> startImpl() async {
-    var server =  await ServerSocket.bind(address, listenPort);
+    var server = await ServerSocket.bind(address, listenPort);
     server.listen(_onAcceptSocket);
     return server;
   }
@@ -210,8 +208,6 @@ class _SocketHandler extends SocketHandlerBase<GatekeeperServer> {
         server: true,
         seed1: server.listenPort,
       );
-
-
 
   void _sendResponse(String message, {required bool secure}) {
     if (secure) {

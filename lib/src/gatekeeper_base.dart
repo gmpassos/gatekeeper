@@ -50,7 +50,7 @@ class Gatekeeper {
   ///
   /// Returns a [Future] that completes with `true` if the IP was successfully blocked,
   /// or `false` if the operation failed.
-  Future<bool>  blockIP(String ip) {
+  Future<bool> blockIP(String ip) {
     return driver.blockIP(ip);
   }
 
@@ -60,7 +60,7 @@ class Gatekeeper {
   ///
   /// Returns a [Future] that completes with `true` if the IP was successfully unblocked,
   /// or `false` if the operation failed.
-  Future<bool>  unblockIP(String ip) {
+  Future<bool> unblockIP(String ip) {
     return driver.unblockIP(ip);
   }
 
@@ -195,7 +195,7 @@ abstract class GatekeeperDriver {
   ///
   /// Returns a [Future] that completes with `true` if the IP was successfully blocked,
   /// or `false` if the operation failed.
-  Future<bool> blockIP(String ip) ;
+  Future<bool> blockIP(String ip);
 
   /// Unblocks network traffic from a specific IP address.
   ///
@@ -203,7 +203,7 @@ abstract class GatekeeperDriver {
   ///
   /// Returns a [Future] that completes with `true` if the IP was successfully unblocked,
   /// or `false` if the operation failed.
-  Future<bool> unblockIP(String ip) ;
+  Future<bool> unblockIP(String ip);
 
   /// Lists all the currently blocked TCP ports.
   ///
