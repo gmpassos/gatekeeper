@@ -4,20 +4,18 @@ import 'dart:io';
 import 'gatekeeper_base.dart';
 import 'socket_base.dart';
 
-class GateKeeperIRPCServer extends SocketServerBase {
+class GateKeeperIPCServer extends SocketServerBase {
   final Gatekeeper gatekeeper;
 
   final int listenPort;
 
-  GateKeeperIRPCServer(this.gatekeeper,
-      {this.listenPort = 7127, super.verbose = false});
+  GateKeeperIPCServer(this.gatekeeper, {int? listenPort, super.verbose = false})
+      : listenPort = listenPort ?? 7127;
 
   /// Starts the server and begins listening for incoming local connections.
   ///
   /// Returns a [Future] that completes with `true` if the server successfully starts,
   /// or `false` if it is already running.
-  ///
-  /// Throws a [StateError] if the [GateKeeperIRPC] cannot resolve.
   @override
   Future<bool> start() async {
     if (isStarted) return false;
@@ -43,15 +41,19 @@ class GateKeeperIRPCServer extends SocketServerBase {
 
   @override
   void onSocketError(SocketHandlerBase<SocketServerBase> socketHandler) {}
+
+  @override
+  String toString() =>
+      'GateKeeperIPCServer[${Gatekeeper.VERSION}]{listenPort: $listenPort}@$gatekeeper';
 }
 
-class _SocketHandler extends SocketHandlerBase<GateKeeperIRPCServer> {
+class _SocketHandler extends SocketHandlerBase<GateKeeperIPCServer> {
   _SocketHandler(super.socket, super.server) : super(maxRequestLength: 512);
 
   Gatekeeper get gatekeeper => server.gatekeeper;
 
   @override
-  String get logName => 'IRPC';
+  String get logName => 'IPC';
 
   void _sendResponse(String message) {
     if (verbose) {
