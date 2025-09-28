@@ -13,6 +13,8 @@
 - `GatekeeperServer`:
   - Added `ipcServer`.
 
+- New `GatekeeperAbuse`.
+
 ## 1.0.11
 
 - `GatekeeperIpTables`:
