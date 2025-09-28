@@ -144,7 +144,7 @@ Future<void> _testServer({required bool secure, int? ipcPort}) async {
 
   // IPC:
   if (ipcPort != null) {
-    var ipcClient = GatekeeperIPCClient('localhost', ipcPort);
+    var ipcClient = GatekeeperIPCClient(port: ipcPort);
 
     expect(await ipcClient.connect(), isTrue);
 
