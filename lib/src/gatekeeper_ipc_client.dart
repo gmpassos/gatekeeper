@@ -1,4 +1,4 @@
-import 'package:gatekeeper/src/socket_base.dart';
+import 'socket_base.dart';
 
 class GatekeeperIPCClient extends SocketClientBase {
   GatekeeperIPCClient({int? port}) : super('localhost', port ?? 7127);
