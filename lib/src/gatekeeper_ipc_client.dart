@@ -1,7 +1,7 @@
 import 'package:gatekeeper/src/socket_base.dart';
 
 class GatekeeperIPCClient extends SocketClientBase {
-  GatekeeperIPCClient(super.host, super.port);
+  GatekeeperIPCClient({int? port}) : super('localhost', port ?? 7127);
 
   Future<List<String>> listBlockedIPs() async {
     var response = await sendCommand('list blocked_ips');
