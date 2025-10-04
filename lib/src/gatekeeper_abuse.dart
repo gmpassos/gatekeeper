@@ -206,16 +206,11 @@ class GatekeeperAbuse {
         .filterTime(initTime: initTime, endTime: endTime)
         .toList();
 
-    if (ipEvents.isEmpty) {
-      return AccessState(ip, IPState.untracked);
-    }
+    if (ipEvents.isEmpty) return AccessState(ip, IPState.untracked);
 
     final rate = ipEvents.ratePer(period.inMilliseconds,
         initTime: initTime, endTime: endTime);
-
-    if (rate <= 0) {
-      return AccessState(ip, IPState.normal, rate: 0);
-    }
+    if (rate <= 0) return AccessState(ip, IPState.normal, rate: 0);
 
     final loginState =
         computeLoginState(ip, initTime: initTime, endTime: endTime);
