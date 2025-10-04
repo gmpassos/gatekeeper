@@ -148,8 +148,9 @@ class AccessState {
   final String ip;
   final IPState state;
   final num? rate;
+  final num? maxAccess;
 
-  const AccessState(this.ip, this.state, {this.rate});
+  const AccessState(this.ip, this.state, {this.rate, this.maxAccess});
 
   @override
   bool operator ==(Object other) =>
@@ -158,13 +159,15 @@ class AccessState {
           runtimeType == other.runtimeType &&
           ip == other.ip &&
           state == other.state &&
-          rate.eq(other.rate, 0.01);
+          rate.eq(other.rate, 0.01) &&
+          maxAccess.eq(other.maxAccess, 0.99);
 
   @override
-  int get hashCode => Object.hash(ip, state, rate);
+  int get hashCode => Object.hash(ip, state, rate, maxAccess);
 
   @override
-  String toString() => 'AccessState[$ip]{state: $state, rate: $rate}';
+  String toString() =>
+      'AccessState[$ip]{state: $state, rate: $rate, maxAccess: $maxAccess}';
 }
 
 class LoginState {
@@ -189,6 +192,15 @@ class LoginState {
 }
 
 class GatekeeperAbuse {
+  final int userMaxAccessPerHour;
+  final int maxAccessUserMultiplier;
+
+  GatekeeperAbuse({
+    this.userMaxAccessPerHour =
+        200 + (60 * 60 * 10), // 200 + 10/sec (bootstrap + requests/sec)
+    this.maxAccessUserMultiplier = 4,
+  });
+
   final QueueList<Event> _accessEvents = QueueList();
 
   List<Event> get accessEvents => UnmodifiableListView(_accessEvents);
@@ -220,22 +232,22 @@ class GatekeeperAbuse {
     final maxAccess = computeMaxAccessPer(period, loginState);
 
     if (rate > maxAccess) {
-      return AccessState(ip, IPState.blocked, rate: rate);
+      return AccessState(ip, IPState.blocked, rate: rate, maxAccess: maxAccess);
     }
 
-    return AccessState(ip, IPState.normal, rate: rate);
+    return AccessState(ip, IPState.normal, rate: rate, maxAccess: maxAccess);
   }
 
   num computeMaxAccessPerHour(LoginState loginState) {
-    var max = 200 + (60 * 60 * 10);
     final loggedUsers = loginState.loggedUsers;
-    if (loggedUsers <= 0) return max;
-    return max * 4 * loggedUsers;
+    if (loggedUsers <= 0) return userMaxAccessPerHour;
+    return userMaxAccessPerHour * maxAccessUserMultiplier * loggedUsers;
   }
 
   num computeMaxAccessPer(Duration? period, LoginState loginState) {
     var max = computeMaxAccessPerHour(loginState);
     if (period == null) return max;
+
     var r = (1000 * 60 * 60) / period.inMilliseconds;
     if (r == 0) return max;
     return max / r;
