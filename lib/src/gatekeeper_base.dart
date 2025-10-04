@@ -57,8 +57,38 @@ class Gatekeeper {
   ///
   /// Returns a [Future] that completes with `true` if the IP was successfully blocked,
   /// or `false` if the operation failed.
-  Future<bool> blockIP(String ip) {
+  ///
+  /// Uses [canBlockAddress] with [maxCacheAge] (default 10 min) to cache local addresses.
+  Future<bool> blockIP(String ip,
+      {Duration maxCacheAge = const Duration(minutes: 10)}) async {
+    var canBlock = await canBlockAddress(ip, maxCacheAge: maxCacheAge);
+    if (!canBlock) return false;
     return driver.blockIP(ip);
+  }
+
+  /// Determines if [address] is eligible to be blocked.
+  ///
+  /// Returns `false` for empty addresses, localhost (IPv4/IPv6), or
+  /// addresses currently accepted on TCP ports. Otherwise returns `true`.
+  ///
+  /// Uses [listLocalAddressesCached] with [maxCacheAge] (default 10 min) to cache local addresses.
+  Future<bool> canBlockAddress(String address,
+      {Duration maxCacheAge = const Duration(minutes: 10)}) async {
+    address = address.trim();
+    if (address.isEmpty) return false;
+
+    if (address == 'localhost' || address == '127.0.0.1' || address == '::1') {
+      return false;
+    }
+
+    var localAddresses =
+        await listLocalAddressesCached(maxCacheAge: maxCacheAge);
+    if (localAddresses.contains(address)) return false;
+
+    var acceptedIPs = await listAcceptedAddressesOnTCPPorts();
+    if (acceptedIPs.any((e) => e.address == address)) return false;
+
+    return true;
   }
 
   /// Unblocks network traffic from a specific IP address.
@@ -136,6 +166,49 @@ class Gatekeeper {
   Future<bool> unacceptAddressOnTCPPort(String address, int? port) async {
     return driver.unacceptAddressOnTCPPort(address, port,
         allowedPorts: allowedPorts, allowAllPorts: allowAllPorts);
+  }
+
+  Set<String>? _cachedLocalAddresses;
+  DateTime? _cachedLocalAddressesTime;
+
+  /// Clears the cached local addresses.
+  /// See [listLocalAddressesCached].
+  void clearLocalAddressesCache() {
+    _cachedLocalAddresses = null;
+    _cachedLocalAddressesTime = null;
+  }
+
+  /// Returns an unmodifiable set of all local network addresses of the current machine.
+  ///
+  /// Includes both IPv4 and IPv6 addresses.
+  ///
+  /// Results are cached for up to [maxCacheAge] (default 10 min).
+  /// After this duration, the cache is refreshed on the next call.
+  ///
+  /// See [listLocalAddresses] and [clearLocalAddressesCache].
+  Future<Set<String>> listLocalAddressesCached(
+      {Duration maxCacheAge = const Duration(minutes: 10)}) async {
+    final now = DateTime.now();
+
+    if (_cachedLocalAddresses != null &&
+        _cachedLocalAddressesTime != null &&
+        now.difference(_cachedLocalAddressesTime!) < maxCacheAge) {
+      return _cachedLocalAddresses!;
+    }
+
+    final addresses = await listLocalAddresses();
+
+    _cachedLocalAddresses = addresses;
+    _cachedLocalAddressesTime = now;
+
+    return Set.unmodifiable(addresses);
+  }
+
+  /// Returns a set of all local network addresses of the current machine.
+  ///
+  /// Includes IPv4 and IPv6 addresses.
+  Future<Set<String>> listLocalAddresses() {
+    return driver.listLocalAddresses();
   }
 
   /// Resolves the [Gatekeeper] [driver].
@@ -341,6 +414,11 @@ abstract class GatekeeperDriver {
       {bool sudo = false,
       required Set<int>? allowedPorts,
       required bool allowAllPorts});
+
+  /// Returns a set of all local network addresses of the current machine.
+  ///
+  /// Includes IPv4 and IPv6 addresses.
+  Future<Set<String>> listLocalAddresses();
 
   /// Resolves this [GatekeeperDriver] instance to ensure that it can be used in this system.
   ///

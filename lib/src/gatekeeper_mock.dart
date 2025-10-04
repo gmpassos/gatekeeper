@@ -7,6 +7,7 @@ class GatekeeperMock extends GatekeeperDriver {
   final Set<String> blockedIPs;
   final Set<int> blockedPorts;
   final Set<(String, int)> acceptedAddressesOnPort;
+  final Set<String> localAddresses;
 
   final bool verbose;
 
@@ -14,10 +15,12 @@ class GatekeeperMock extends GatekeeperDriver {
       {Set<String>? blockedIPs,
       Set<int>? blockedPorts,
       Set<(String, int)>? acceptedAddressesOnPort,
+      Set<String>? localAddresses,
       this.verbose = false})
       : blockedIPs = blockedIPs ?? {},
         blockedPorts = blockedPorts ?? {},
-        acceptedAddressesOnPort = acceptedAddressesOnPort ?? {};
+        acceptedAddressesOnPort = acceptedAddressesOnPort ?? {},
+        localAddresses = localAddresses ?? {};
 
   @override
   Future<String> resolveBinaryPath(String binaryCommand) async {
@@ -138,6 +141,10 @@ class GatekeeperMock extends GatekeeperDriver {
     }
     return true;
   }
+
+  @override
+  Future<Set<String>> listLocalAddresses() async =>
+      Set.unmodifiable(localAddresses);
 
   @override
   Future<bool> resolve() async => true;

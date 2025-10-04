@@ -442,6 +442,32 @@ class GatekeeperIpTables extends GatekeeperDriver {
   }
 
   @override
+  Future<Set<String>> listLocalAddresses() async {
+    final localAddresses = <String>{};
+
+    // Run `ip -o addr`
+    // to list all network interface addresses.
+    // This command can be executed by a regular user (usually no sudo needed).
+    final result =
+        await runCommand('ip', ['-o', 'addr', 'show'], expectedExitCode: 0);
+    if (result == null) {
+      throw Exception('Failed to get IP addresses!');
+    }
+
+    final lines = result.trim().split(RegExp(r'[\r\n]+'));
+
+    for (final line in lines) {
+      final parts = line.trim().split(' ');
+      if (parts.length >= 4) {
+        final addr = parts[3].split('/')[0]; // Remove CIDR
+        localAddresses.add(addr);
+      }
+    }
+
+    return localAddresses;
+  }
+
+  @override
   Future<bool> resolve() async {
     final iptablesBin = await resolveBinaryPathCached('iptables');
     return iptablesBin.isNotEmpty;
