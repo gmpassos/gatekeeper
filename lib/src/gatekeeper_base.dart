@@ -66,16 +66,23 @@ class Gatekeeper {
     return driver.blockIP(ip);
   }
 
-  /// Determines if [address] is eligible to be blocked.
+  static final _regexpSpace = RegExp(r'\s');
+
+  /// Checks whether [address] can be blocked.
   ///
-  /// Returns `false` for empty addresses, localhost (IPv4/IPv6), or
-  /// addresses currently accepted on TCP ports. Otherwise returns `true`.
+  /// Returns `false` for:
+  /// - empty addresses,
+  /// - localhost (IPv4/IPv6),
+  /// - addresses of the local machine, or
+  /// - addresses currently accepted on TCP ports.
+  ///
+  /// Returns `true` if the address is eligible for blocking.
   ///
   /// Uses [listLocalAddressesCached] with [maxCacheAge] (default 10 min) to cache local addresses.
   Future<bool> canBlockAddress(String address,
       {Duration maxCacheAge = const Duration(minutes: 10)}) async {
     address = address.trim();
-    if (address.isEmpty) return false;
+    if (address.isEmpty || _regexpSpace.hasMatch(address)) return false;
 
     if (address == 'localhost' || address == '127.0.0.1' || address == '::1') {
       return false;
