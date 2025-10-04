@@ -309,6 +309,23 @@ class GatekeeperAbuse {
     events.add(
         Event(ip, type, time ?? DateTime.now().millisecondsSinceEpoch, logged));
   }
+
+  /// Removes all access events for [ip] that occurred at or before [untilTime].
+  ///
+  /// Returns the number of removed events.
+  int purgeAccess(String ip, {required int untilTime}) {
+    var rmCount = 0;
+    for (var i = 0; i < _accessEvents.length;) {
+      var evt = _accessEvents[i];
+      if (evt.time <= untilTime) {
+        _accessEvents.removeAt(i);
+        ++rmCount;
+      } else {
+        ++i;
+      }
+    }
+    return rmCount;
+  }
 }
 
 /// Time conversion helper.

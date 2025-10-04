@@ -120,6 +120,24 @@ void main() {
 
       ////////////
 
+      expect(abuse.purgeAccess(ip1, untilTime: 31009), equals(121));
+
+      expect(abuse.accessEvents.length, equals(1000));
+      expect(abuse.accessEvents.init(), equals(32009));
+      expect(abuse.accessEvents.end(), equals(41108));
+
+      expect(
+        abuse.computeAccessState(ip1, period30sec, initTime: 1, endTime: 31009),
+        equals(AccessState(ip1, IPState.untracked)),
+      );
+
+      expect(
+        abuse.computeAccessState(ip1, period30sec, initTime: 1, endTime: 41108),
+        equals(AccessState(ip1, IPState.blocked, rate: 729.07, maxAccess: 301)),
+      );
+
+      ////////////
+
       expect(
         abuse.computeMaxAccessPer(period30sec, LoginState(ip1, 0)),
         inInclusiveRange(301, 302),
