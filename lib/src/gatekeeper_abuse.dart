@@ -28,12 +28,8 @@ class Event {
 
   Object? get loggedUser {
     final logged = this.logged;
-    if (logged == null) {
-      return null;
-    } else {
-      if (logged is bool) return null;
-      return logged;
-    }
+    if (logged == null || logged is bool) return null;
+    return logged;
   }
 
   Event copyWith({String? ip, EventType? type, int? time, Object? logged}) =>
@@ -126,15 +122,10 @@ extension IterableEventExtension on Iterable<Event> {
   }
 
   num ratePer(int timeMs, {Object? initTime, Object? endTime}) {
-    var l = filterTime(initTime: initTime, endTime: endTime).toList();
-
-    final period = l.period(initTime: initTime, endTime: endTime);
-    if (period == null) return 0;
-
-    var length = l.length;
-    if (period == 0) return length;
-
-    return length / (period / timeMs);
+    final l = filterTime(initTime: initTime, endTime: endTime).toList();
+    final p = l.period(initTime: initTime, endTime: endTime);
+    if (p == null || p == 0) return l.length;
+    return l.length / (p / timeMs);
   }
 }
 
@@ -239,18 +230,16 @@ class GatekeeperAbuse {
   }
 
   num computeMaxAccessPerHour(LoginState loginState) {
-    final loggedUsers = loginState.loggedUsers;
-    if (loggedUsers <= 0) return userMaxAccessPerHour;
-    return userMaxAccessPerHour * maxAccessUserMultiplier * loggedUsers;
+    final users = loginState.loggedUsers;
+    if (users <= 0) return userMaxAccessPerHour;
+    return userMaxAccessPerHour * maxAccessUserMultiplier * users;
   }
 
   num computeMaxAccessPer(Duration? period, LoginState loginState) {
     var max = computeMaxAccessPerHour(loginState);
     if (period == null) return max;
-
-    var r = (1000 * 60 * 60) / period.inMilliseconds;
-    if (r == 0) return max;
-    return max / r;
+    var ratio = (1000 * 60 * 60) / period.inMilliseconds;
+    return ratio == 0 ? max : max / ratio;
   }
 
   final QueueList<Event> _loginEvents = QueueList();
@@ -261,24 +250,19 @@ class GatekeeperAbuse {
       _notifyEvent(ip, EventType.login, time?.toTimeMS(), user, _loginEvents);
 
   LoginState computeLoginState(String ip, {Object? initTime, Object? endTime}) {
-    var ipEvents = _loginEvents
+    final ipEvents = _loginEvents
         .withIP(ip)
         .filterTime(initTime: initTime, endTime: endTime)
         .toList();
-
-    if (ipEvents.isEmpty) {
-      return LoginState(ip, 0);
-    }
-
-    var users = ipEvents.loggedUsers().toSet();
-
+    if (ipEvents.isEmpty) return LoginState(ip, 0);
+    final users = ipEvents.loggedUsers().toSet();
     return LoginState(ip, users.length);
   }
 
   void _notifyEvent(String ip, EventType type, int? time, Object? logged,
       QueueList<Event> events) {
-    time ??= DateTime.now().millisecondsSinceEpoch;
-    events.add(Event(ip, type, time, logged));
+    events.add(
+        Event(ip, type, time ?? DateTime.now().millisecondsSinceEpoch, logged));
   }
 }
 
