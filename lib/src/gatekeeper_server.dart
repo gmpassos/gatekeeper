@@ -317,7 +317,14 @@ class _SocketHandler extends SocketHandlerBase<GatekeeperServer> {
 
           args = args.trim();
 
-          if (args == 'ports') {
+          if (args == 'ips') {
+            var blockedIPs = await gatekeeper.listBlockedIPs();
+            _sendResponse("blocked: ${blockedIPs.join(', ')}", secure: secure);
+
+            log('List IPs.');
+
+            return true;
+          } else if (args == 'ports') {
             var blockedPorts = await gatekeeper.listBlockedTCPPorts();
             _sendResponse("blocked: ${blockedPorts.join(', ')}",
                 secure: secure);
@@ -344,6 +351,50 @@ class _SocketHandler extends SocketHandlerBase<GatekeeperServer> {
           }
         }
 
+      case 'block_ip':
+        {
+          if (!_logged) {
+            close();
+            return null;
+          }
+
+          var ip = args.trim();
+
+          if (ip.length >= 3) {
+            var ok = await gatekeeper.blockIP(ip);
+            _sendResponse("block_ip: $ok", secure: secure);
+
+            log('BLOCKED IP: $ip [$ok]');
+
+            return true;
+          } else {
+            close();
+            return null;
+          }
+        }
+
+      case 'unblock_ip':
+        {
+          if (!_logged) {
+            close();
+            return null;
+          }
+
+          var ip = args.trim();
+
+          if (ip.length >= 3) {
+            var ok = await gatekeeper.unblockIP(ip);
+            _sendResponse("unblock_ip: $ok", secure: secure);
+
+            log('UNBLOCKED IP: $ip [$ok]');
+
+            return true;
+          } else {
+            close();
+            return null;
+          }
+        }
+
       case 'block':
         {
           if (!_logged) {
@@ -357,7 +408,7 @@ class _SocketHandler extends SocketHandlerBase<GatekeeperServer> {
             var ok = await gatekeeper.blockTCPPort(port);
             _sendResponse("block: $ok", secure: secure);
 
-            log('BLOCKED PORT: $port');
+            log('BLOCKED PORT: $port [$ok]');
 
             return true;
           } else {
@@ -379,7 +430,7 @@ class _SocketHandler extends SocketHandlerBase<GatekeeperServer> {
             var ok = await gatekeeper.unblockTCPPort(port);
             _sendResponse("unblock: $ok", secure: secure);
 
-            log('UNBLOCKED PORT: $port');
+            log('UNBLOCKED PORT: $port [$ok]');
 
             return true;
           } else {
@@ -412,7 +463,7 @@ class _SocketHandler extends SocketHandlerBase<GatekeeperServer> {
             var ok = await gatekeeper.acceptAddressOnTCPPort(address, port);
             _sendResponse("accepted: $ok ($address -> $port)", secure: secure);
 
-            log('ACCEPTED: $address -> $port');
+            log('ACCEPTED: $address -> $port [$ok]');
 
             return true;
           } else {
@@ -446,7 +497,7 @@ class _SocketHandler extends SocketHandlerBase<GatekeeperServer> {
             _sendResponse("unaccepted: $ok ($address -> $port)",
                 secure: secure);
 
-            log('UNACCEPTED: $address -> $port');
+            log('UNACCEPTED: $address -> $port [$ok]');
 
             return true;
           } else {
