@@ -22,6 +22,8 @@
 
 - New `GatekeeperAbuse`.
 
+- test: ^1.26.3
+
 ## 1.0.11
 
 - `GatekeeperIpTables`:
