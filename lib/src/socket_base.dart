@@ -296,6 +296,7 @@ abstract class SocketClientBase {
   Socket? _socket;
 
   String? get remoteAddress => _socket?.remoteAddress.address;
+
   int? get remotePort => _socket?.remotePort;
 
   /// A flag indicating whether the client is connected to the server.
