@@ -445,7 +445,7 @@ class GatekeeperIpTables extends GatekeeperDriver {
   Future<Set<String>> listLocalAddresses() async {
     final localAddresses = <String>{};
 
-    // Run `ip -o addr`
+    // Run `ip -o addr show`
     // to list all network interface addresses.
     // This command can be executed by a regular user (usually no sudo needed).
     final result =
@@ -454,12 +454,15 @@ class GatekeeperIpTables extends GatekeeperDriver {
       throw Exception('Failed to get IP addresses!');
     }
 
-    final lines = result.trim().split(RegExp(r'[\r\n]+'));
+    final regExpLineBreak = RegExp(r'[\r\n]+');
+    final regExpSpaces = RegExp(r'\s+');
+
+    final lines = result.trim().split(regExpLineBreak);
 
     for (final line in lines) {
-      final parts = line.trim().split(' ');
+      final parts = line.trim().split(regExpSpaces);
       if (parts.length >= 4) {
-        final addr = parts[3].split('/')[0]; // Remove CIDR
+        final addr = parts[3].split('/')[0].trim(); // Remove CIDR
         localAddresses.add(addr);
       }
     }
