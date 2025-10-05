@@ -86,7 +86,7 @@ class _SocketHandler extends SocketHandlerBase<GateKeeperIPCServer> {
         {
           var ip = args.trim();
 
-          if (ip.length >= 7) {
+          if (ip.length >= 3) {
             var ok = await gatekeeper.blockIP(ip);
             _sendResponse("block_ip: $ok");
 
