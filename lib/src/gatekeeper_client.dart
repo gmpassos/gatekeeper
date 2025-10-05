@@ -195,7 +195,7 @@ class GatekeeperClient extends SocketClientBase {
   /// or `false` if it failed.
   Future<bool> blockTCPPort(int port) async {
     var response = await sendCommand("block $port");
-    return response?.contains('true') ?? false;
+    return response?.contains('block: true') ?? false;
   }
 
   /// Unblocks a specific TCP port.
@@ -206,7 +206,7 @@ class GatekeeperClient extends SocketClientBase {
   /// or `false` if it failed.
   Future<bool> unblockTCPPort(int port) async {
     var response = await sendCommand("unblock $port");
-    return response?.contains('true') ?? false;
+    return response?.contains('unblock: true') ?? false;
   }
 
   /// Lists the accepted addresses on TCP ports.
