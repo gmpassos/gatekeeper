@@ -139,9 +139,6 @@ Future<void> _testServer({required bool secure, int? ipcPort}) async {
   expect(await client.unblockTCPPort(2224), isTrue);
   expect(await client.listBlockedTCPPorts(), equals(<int>{}));
 
-  client.close();
-  expect(client.isConnected, isFalse);
-
   // IPC:
   if (ipcPort != null) {
     var ipcClient = GatekeeperIPCClient(port: ipcPort);
@@ -174,9 +171,28 @@ Future<void> _testServer({required bool secure, int? ipcPort}) async {
     expect(await ipcClient.unblockIP('192.10.11.12'), isTrue);
 
     expect(await ipcClient.listBlockedIPs(), isEmpty);
+
+    (await client.acceptAddressOnTCPPort('192.168.0.100', 2224), isTrue);
+
+    expect(
+        await client.listAcceptedAddressesOnTCPPorts(),
+        equals(<({String address, int port})>{
+          (address: '192.168.0.100', port: 2224),
+        }));
+
+    expect(await ipcClient.blockIP('192.168.0.100'), isFalse);
+
+    expect(await ipcClient.listBlockedIPs(), isEmpty);
+
+    expect(await ipcClient.blockIP('192.168.0.101'), isTrue);
+
+    expect(await ipcClient.listBlockedIPs(), equals(['192.168.0.101']));
   }
 
   // CLOSE
+
+  client.close();
+  expect(client.isConnected, isFalse);
 
   gatekeeperServer.close();
   expect(gatekeeperServer.isStarted, isFalse);
