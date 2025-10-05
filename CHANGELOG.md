@@ -2,6 +2,9 @@
 
 - New `SocketServerBase`, `SocketHandlerBase` and `SocketClientBase`.
 
+- `SocketHandlerBase`:
+  - Fix `allDataLength`.
+
 - `GatekeeperServer`: extends `SocketServerBase`.
 - `GatekeeperClient`: extends `SocketClientBase`.
 

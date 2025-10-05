@@ -131,15 +131,19 @@ abstract class SocketHandlerBase<S extends SocketServerBase> {
 
   Uint8List compactData() {
     if (allData.isEmpty) {
+      allDataLength = 0;
       return Uint8List(0);
-    } else if (allData.length < 2) {
-      return allData.first;
+    } else if (allData.length == 1) {
+      var block0 = allData.first;
+      allDataLength = block0.length;
+      return block0;
     }
 
     var fullData = allData.reduce((block1, block2) => block1.merge(block2));
 
     allData.clear();
     allData.add(fullData);
+    allDataLength = fullData.length;
 
     return fullData;
   }
@@ -172,6 +176,7 @@ abstract class SocketHandlerBase<S extends SocketServerBase> {
 
     allData.clear();
     allData.add(rest);
+    allDataLength = rest.length;
   }
 
   Future<void> processData() async {
@@ -224,6 +229,7 @@ abstract class SocketHandlerBase<S extends SocketServerBase> {
 
     if (processed == null) {
       allData.clear();
+      allDataLength = 0;
       onInvalidSocketProtocol();
     } else if (processed) {
       removeData(idxNewLine + 1);
@@ -268,6 +274,7 @@ abstract class SocketHandlerBase<S extends SocketServerBase> {
 
     socket.close();
     allData.clear();
+    allDataLength = 0;
   }
 }
 
