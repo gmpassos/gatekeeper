@@ -181,6 +181,8 @@ Future<void> _testServer({required bool secure, int? ipcPort}) async {
         }));
 
     expect(await ipcClient.blockIP('192.168.0.100'), isFalse);
+    expect(await ipcClient.blockIP('127.0.0.1'), isFalse);
+    expect(await ipcClient.blockIP('::1'), isFalse);
 
     expect(await ipcClient.listBlockedIPs(), isEmpty);
 
