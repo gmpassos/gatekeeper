@@ -451,7 +451,7 @@ class GatekeeperIpTables extends GatekeeperDriver {
     final result =
         await runCommand('ip', ['-o', 'addr', 'show'], expectedExitCode: 0);
     if (result == null) {
-      throw Exception('Failed to get IP addresses!');
+      throw Exception('Failed to list IP addresses!');
     }
 
     final regExpLineBreak = RegExp(r'[\r\n]+');
