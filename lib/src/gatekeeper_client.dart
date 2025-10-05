@@ -168,6 +168,44 @@ class GatekeeperClient extends SocketClientBase {
     return true;
   }
 
+  /// Retrieves the set of currently blocked IP addresses.
+  ///
+  /// Returns a [Set] of IPs as strings.
+  /// If no addresses are blocked, returns an empty set.
+  Future<Set<String>> listBlockedIPs() async {
+    var response = await sendCommand("list ips");
+    if (response == null) return {};
+
+    response = response.split(':')[1];
+
+    var ips = response
+        .trim()
+        .split(RegExp(r',?\s+'))
+        .nonNulls
+        .where((e) => e.isNotEmpty)
+        .toSet();
+
+    return ips;
+  }
+
+  /// Blocks the specified [ip] address.
+  ///
+  /// Returns `true` if the address was successfully blocked, or `false` otherwise.
+  Future<bool> blockIP(String ip) async {
+    var response = await sendCommand('block_ip $ip');
+    if (response == null) return false;
+    return response.contains('block_ip: true');
+  }
+
+  /// Unblocks the specified [ip] address.
+  ///
+  /// Returns `true` if the address was successfully unblocked, or `false` otherwise.
+  Future<bool> unblockIP(String ip) async {
+    var response = await sendCommand('unblock_ip $ip');
+    if (response == null) return false;
+    return response.contains('unblock_ip: true');
+  }
+
   /// Lists the TCP ports that are currently blocked.
   ///
   /// Returns a [Future] that completes with a [Set] of blocked ports.
@@ -346,6 +384,34 @@ class GatekeeperClient extends SocketClientBase {
                 return false;
               }
           }
+        }
+
+      case 'blockip':
+      case 'block_ip':
+        {
+          var ip = parts[1].trim();
+          if (ip.length < 3) {
+            print('** Invalid IP: $ip');
+            return false;
+          }
+
+          var blocked = await blockIP(ip);
+          print('-- Blocked IP $ip: $blocked');
+          return true;
+        }
+
+      case 'unblockip':
+      case 'unblock_ip':
+        {
+          var ip = parts[1].trim();
+          if (ip.length < 3) {
+            print('** Invalid IP: $ip');
+            return false;
+          }
+
+          var unblocked = await unblockIP(ip);
+          print('-- Unblocked IP $ip: $unblocked');
+          return true;
         }
 
       case 'block':

@@ -14,7 +14,11 @@
   - Added `listBlockedIPs`, `blockIP` and `unblockIP`.
 
 - `GatekeeperServer`:
+  - Added commands `list ips`, `block_ip` and `unblock_ip`.
   - Added `ipcServer`.
+
+- `GatekeeperClient`:
+  - Added `listBlockedIPs`, `blockIP` and `unblockIP`.
 
 - New `GatekeeperAbuse`.
 
