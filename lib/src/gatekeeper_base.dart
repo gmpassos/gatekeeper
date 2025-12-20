@@ -44,6 +44,70 @@ class Gatekeeper {
       : allowedPorts =
             allowedPorts != null ? Set.unmodifiable(allowedPorts) : null;
 
+  /// Lists all currently blocked IP addresses.
+  ///
+  /// Returns a [Future] that completes with a [Set] of blocked IP addresses.
+  Future<Set<String>> listBlockedIPs() {
+    return driver.listBlockedIPs(sudo: sudo);
+  }
+
+  /// Blocks network traffic from a specific IP address.
+  ///
+  /// - [ip]: The IP address to be blocked.
+  ///
+  /// Returns a [Future] that completes with `true` if the IP was successfully blocked,
+  /// or `false` if the operation failed.
+  ///
+  /// Uses [canBlockAddress] with [maxCacheAge] (default 10 min) to cache local addresses.
+  Future<bool> blockIP(String ip,
+      {Duration maxCacheAge = const Duration(minutes: 10)}) async {
+    var canBlock = await canBlockAddress(ip, maxCacheAge: maxCacheAge);
+    if (!canBlock) return false;
+    return driver.blockIP(ip);
+  }
+
+  static final _regexpSpace = RegExp(r'\s');
+
+  /// Checks whether [address] can be blocked.
+  ///
+  /// Returns `false` for:
+  /// - empty addresses,
+  /// - localhost (IPv4/IPv6),
+  /// - addresses of the local machine, or
+  /// - addresses currently accepted on TCP ports.
+  ///
+  /// Returns `true` if the address is eligible for blocking.
+  ///
+  /// Uses [listLocalAddressesCached] with [maxCacheAge] (default 10 min) to cache local addresses.
+  Future<bool> canBlockAddress(String address,
+      {Duration maxCacheAge = const Duration(minutes: 10)}) async {
+    address = address.trim();
+    if (address.isEmpty || _regexpSpace.hasMatch(address)) return false;
+
+    if (address == 'localhost' || address == '127.0.0.1' || address == '::1') {
+      return false;
+    }
+
+    var localAddresses =
+        await listLocalAddressesCached(maxCacheAge: maxCacheAge);
+    if (localAddresses.contains(address)) return false;
+
+    var acceptedIPs = await listAcceptedAddressesOnTCPPorts();
+    if (acceptedIPs.any((e) => e.address == address)) return false;
+
+    return true;
+  }
+
+  /// Unblocks network traffic from a specific IP address.
+  ///
+  /// - [ip]: The IP address to be unblocked.
+  ///
+  /// Returns a [Future] that completes with `true` if the IP was successfully unblocked,
+  /// or `false` if the operation failed.
+  Future<bool> unblockIP(String ip) {
+    return driver.unblockIP(ip);
+  }
+
   /// Lists all the currently blocked TCP ports.
   ///
   /// Returns a [Future] that completes with a [Set] of blocked TCP ports.
@@ -111,6 +175,49 @@ class Gatekeeper {
         allowedPorts: allowedPorts, allowAllPorts: allowAllPorts);
   }
 
+  Set<String>? _cachedLocalAddresses;
+  DateTime? _cachedLocalAddressesTime;
+
+  /// Clears the cached local addresses.
+  /// See [listLocalAddressesCached].
+  void clearLocalAddressesCache() {
+    _cachedLocalAddresses = null;
+    _cachedLocalAddressesTime = null;
+  }
+
+  /// Returns an unmodifiable set of all local network addresses of the current machine.
+  ///
+  /// Includes both IPv4 and IPv6 addresses.
+  ///
+  /// Results are cached for up to [maxCacheAge] (default 10 min).
+  /// After this duration, the cache is refreshed on the next call.
+  ///
+  /// See [listLocalAddresses] and [clearLocalAddressesCache].
+  Future<Set<String>> listLocalAddressesCached(
+      {Duration maxCacheAge = const Duration(minutes: 10)}) async {
+    final now = DateTime.now();
+
+    if (_cachedLocalAddresses != null &&
+        _cachedLocalAddressesTime != null &&
+        now.difference(_cachedLocalAddressesTime!) < maxCacheAge) {
+      return _cachedLocalAddresses!;
+    }
+
+    final addresses = await listLocalAddresses();
+
+    _cachedLocalAddresses = addresses;
+    _cachedLocalAddressesTime = now;
+
+    return Set.unmodifiable(addresses);
+  }
+
+  /// Returns a set of all local network addresses of the current machine.
+  ///
+  /// Includes IPv4 and IPv6 addresses.
+  Future<Set<String>> listLocalAddresses() {
+    return driver.listLocalAddresses();
+  }
+
   /// Resolves the [Gatekeeper] [driver].
   ///
   /// Returns a [Future] that completes with a [bool] indicating success or failure.
@@ -161,6 +268,29 @@ abstract class GatekeeperDriver {
   /// Returns a [Future] that completes with the command's output as a [String].
   Future<String?> runCommand(String binaryPath, List<String> args,
       {bool sudo = false, int? expectedExitCode});
+
+  /// Lists all currently blocked IP addresses.
+  ///
+  /// - [sudo]: A flag indicating if sudo privileges should be used. Defaults to `false`.
+  ///
+  /// Returns a [Future] that completes with a [Set] of blocked IP addresses.
+  Future<Set<String>> listBlockedIPs({bool sudo = false});
+
+  /// Blocks network traffic from a specific IP address.
+  ///
+  /// - [ip]: The IP address to be blocked.
+  ///
+  /// Returns a [Future] that completes with `true` if the IP was successfully blocked,
+  /// or `false` if the operation failed.
+  Future<bool> blockIP(String ip);
+
+  /// Unblocks network traffic from a specific IP address.
+  ///
+  /// - [ip]: The IP address to be unblocked.
+  ///
+  /// Returns a [Future] that completes with `true` if the IP was successfully unblocked,
+  /// or `false` if the operation failed.
+  Future<bool> unblockIP(String ip);
 
   /// Lists all the currently blocked TCP ports.
   ///
@@ -291,6 +421,11 @@ abstract class GatekeeperDriver {
       {bool sudo = false,
       required Set<int>? allowedPorts,
       required bool allowAllPorts});
+
+  /// Returns a set of all local network addresses of the current machine.
+  ///
+  /// Includes IPv4 and IPv6 addresses.
+  Future<Set<String>> listLocalAddresses();
 
   /// Resolves this [GatekeeperDriver] instance to ensure that it can be used in this system.
   ///

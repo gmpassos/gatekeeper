@@ -1,3 +1,29 @@
+## 1.0.12
+
+- New `SocketServerBase`, `SocketHandlerBase` and `SocketClientBase`.
+
+- `SocketHandlerBase`:
+  - Fix `allDataLength`.
+
+- `GatekeeperServer`: extends `SocketServerBase`.
+- `GatekeeperClient`: extends `SocketClientBase`.
+
+- New `GateKeeperIPCServer` and `GatekeeperIPCClient`.
+
+- `Gatekeeper`, `GatekeeperDriver`:
+  - Added `listBlockedIPs`, `blockIP` and `unblockIP`.
+
+- `GatekeeperServer`:
+  - Added commands `list ips`, `block_ip` and `unblock_ip`.
+  - Added `ipcServer`.
+
+- `GatekeeperClient`:
+  - Added `listBlockedIPs`, `blockIP` and `unblockIP`.
+
+- New `GatekeeperAbuse`.
+
+- test: ^1.26.3
+
 ## 1.0.11
 
 - `GatekeeperIpTables`:

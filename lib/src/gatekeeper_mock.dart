@@ -4,17 +4,23 @@ import 'gatekeeper_base.dart';
 /// used for testing or simulating behaviors without interacting with actual
 /// system resources like iptables.
 class GatekeeperMock extends GatekeeperDriver {
+  final Set<String> blockedIPs;
   final Set<int> blockedPorts;
   final Set<(String, int)> acceptedAddressesOnPort;
+  final Set<String> localAddresses;
 
   final bool verbose;
 
   GatekeeperMock(
-      {Set<int>? blockedPorts,
+      {Set<String>? blockedIPs,
+      Set<int>? blockedPorts,
       Set<(String, int)>? acceptedAddressesOnPort,
+      Set<String>? localAddresses,
       this.verbose = false})
-      : blockedPorts = blockedPorts ?? {},
-        acceptedAddressesOnPort = acceptedAddressesOnPort ?? {};
+      : blockedIPs = blockedIPs ?? {},
+        blockedPorts = blockedPorts ?? {},
+        acceptedAddressesOnPort = acceptedAddressesOnPort ?? {},
+        localAddresses = localAddresses ?? {};
 
   @override
   Future<String> resolveBinaryPath(String binaryCommand) async {
@@ -25,6 +31,22 @@ class GatekeeperMock extends GatekeeperDriver {
   Future<String?> runCommand(String binaryPath, List<String> args,
       {bool sudo = false, int? expectedExitCode}) async {
     return '';
+  }
+
+  @override
+  Future<Set<String>> listBlockedIPs({bool sudo = false}) async {
+    return blockedIPs.toSet();
+  }
+
+  @override
+  Future<bool> blockIP(String ip) async {
+    blockedIPs.add(ip);
+    return true;
+  }
+
+  @override
+  Future<bool> unblockIP(String ip) async {
+    return blockedIPs.remove(ip);
   }
 
   @override
@@ -119,6 +141,10 @@ class GatekeeperMock extends GatekeeperDriver {
     }
     return true;
   }
+
+  @override
+  Future<Set<String>> listLocalAddresses() async =>
+      Set.unmodifiable(localAddresses);
 
   @override
   Future<bool> resolve() async => true;
