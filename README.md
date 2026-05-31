@@ -69,6 +69,29 @@ To connect to a `GatekeeperServer` on port `2243`:
 gatekeeper_client server-host 2243
 ```
 
+#### Configuration (`.gatekeeper` directory)
+
+The client also looks for a `.gatekeeper` directory in the current user's home
+(resolved on all OSes supported by Dart) to load default options:
+
+- `~/.gatekeeper/config.json`: a JSON object with optional defaults:
+
+  ```json
+  {
+    "host": "localhost",
+    "port": 2243,
+    "access-key": "<ACCESS_KEY>",
+    "verbose": false
+  }
+  ```
+
+- `~/.gatekeeper/access-key`: a plain text file with the access key, used when
+  neither the `--access-key` option nor `config.json` provides one.
+
+Command-line arguments/options take precedence over the `.gatekeeper`
+configuration. The access key may also be passed with `--access-key -` (or `.`)
+to read it from `stdin`.
+
 ## Features and bugs
 
 Please file feature requests and bugs at the [issue tracker][tracker].

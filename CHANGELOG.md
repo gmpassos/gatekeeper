@@ -1,3 +1,15 @@
+## 1.0.12
+
+- `bin/gatekeeper_client.dart`:
+  - Load optional configuration from a `.gatekeeper` directory at the user's
+    home (resolved on all OSes supported by Dart):
+    - `config.json`: optional defaults for `host`, `port`, `access-key` and
+      `verbose`.
+    - `access-key`: optional plain text file with the access key.
+  - Resolution order: command-line arguments/options take precedence over the
+    `.gatekeeper` configuration, with an interactive prompt as the last resort
+    for the access key.
+
 ## 1.0.11
 
 - `GatekeeperIpTables`:
