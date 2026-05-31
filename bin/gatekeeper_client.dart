@@ -75,7 +75,7 @@ String? _resolveAccessKey(ArgsSimple args, GatekeeperClientConfig config) {
 
   accessKey ??= config.accessKey;
 
-  if (accessKey == null || accessKey.isEmpty) {
+  if (accessKey == null || accessKey.isEmpty || accessKey == '?') {
     stdout.write('Access-Key: ');
     accessKey = stdin.readLineSync()?.trim();
   }
