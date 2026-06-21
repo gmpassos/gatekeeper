@@ -73,9 +73,9 @@ void main() {
       final home = Directory.systemTemp.createTempSync('gk_json');
       try {
         Directory('${home.path}/.gatekeeper').createSync();
-        File('${home.path}/.gatekeeper/config.json').writeAsStringSync(
-            '{"host":"example.com","port":2243,'
-            '"access-key":"the-key","verbose":true}');
+        File('${home.path}/.gatekeeper/config.json')
+            .writeAsStringSync('{"host":"example.com","port":2243,'
+                '"access-key":"the-key","verbose":true}');
 
         final cfg = await loadWithHome(home);
         expect(cfg['host'], equals('example.com'));

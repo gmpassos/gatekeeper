@@ -77,8 +77,8 @@ class _FakeIpTables extends GatekeeperIpTables {
       rules.insert(0, _Rule(target, portN, source));
       return '';
     } else if (op == '-D') {
-      final idx = rules.indexWhere((r) =>
-          r.target == target && r.port == portN && r.source == source);
+      final idx = rules.indexWhere(
+          (r) => r.target == target && r.port == portN && r.source == source);
       if (idx >= 0) {
         rules.removeAt(idx);
         return '';
@@ -119,12 +119,10 @@ void main() {
     test('block / list / unblock spans both families', () async {
       final fw = _FakeIpTables();
 
-      expect(
-          await fw.listBlockedTCPPorts(allowedPorts: null), equals(<int>{}));
+      expect(await fw.listBlockedTCPPorts(allowedPorts: null), equals(<int>{}));
 
       expect(
-          await fw.blockTCPPort(2223,
-              allowedPorts: null, allowAllPorts: true),
+          await fw.blockTCPPort(2223, allowedPorts: null, allowAllPorts: true),
           isTrue);
       expect(await fw.listBlockedTCPPorts(allowedPorts: null), equals({2223}));
 
@@ -136,8 +134,7 @@ void main() {
           await fw.unblockTCPPort(2223,
               allowedPorts: null, allowAllPorts: true),
           isTrue);
-      expect(
-          await fw.listBlockedTCPPorts(allowedPorts: null), equals(<int>{}));
+      expect(await fw.listBlockedTCPPorts(allowedPorts: null), equals(<int>{}));
     });
 
     test('accept IPv4 uses iptables, IPv6 uses ip6tables', () async {
@@ -190,8 +187,7 @@ void main() {
           await fw.unacceptAddressOnTCPPort('2001:db8::1', 2223,
               allowedPorts: null, allowAllPorts: true),
           isTrue);
-      expect(
-          await fw.listAcceptedAddressesOnTCPPorts(allowedPorts: null),
+      expect(await fw.listAcceptedAddressesOnTCPPorts(allowedPorts: null),
           equals(<(String, int)>{('2001:db8::1', 2224)}));
 
       // Remove from all ports (port == null).

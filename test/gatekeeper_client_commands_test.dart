@@ -12,8 +12,7 @@ void main() {
 
     setUp(() async {
       server = GatekeeperServer(
-        Gatekeeper(
-            driver: GatekeeperMock(), allowedPorts: {2223, 2224}),
+        Gatekeeper(driver: GatekeeperMock(), allowedPorts: {2223, 2224}),
         listenPort: listenPort,
         accessKey: accessKey,
       );
