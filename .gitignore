@@ -9,3 +9,6 @@ pubspec.lock
 .DS_Store
 
 *.exe
+
+# Test coverage output
+coverage/
