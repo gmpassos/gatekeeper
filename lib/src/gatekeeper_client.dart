@@ -313,11 +313,13 @@ class GatekeeperClient {
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .map((e) {
-          var parts = e.split(':');
-          if (parts.length != 2) return null;
-          var a = parts[0];
-          var p = int.tryParse(parts[1]);
-          if (p == null) return null;
+          // Split on the LAST `:` so IPv6 addresses (which contain `:`) are
+          // parsed correctly; the port is always the trailing segment.
+          var idx = e.lastIndexOf(':');
+          if (idx <= 0 || idx >= e.length - 1) return null;
+          var a = e.substring(0, idx).trim();
+          var p = int.tryParse(e.substring(idx + 1).trim());
+          if (a.isEmpty || p == null) return null;
           return (address: a, port: p);
         })
         .nonNulls

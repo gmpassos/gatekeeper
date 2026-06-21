@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:gatekeeper/gatekeeper.dart';
 import 'package:gatekeeper/src/gatekeeper_mock.dart';
 import 'package:gatekeeper/src/utils.dart';
@@ -21,6 +23,14 @@ void main() {
 
     test('trims whitespace', () {
       expect(normalizeIpAddress('  1.2.3.4  '), equals('1.2.3.4'));
+    });
+
+    test('empty stays empty', () {
+      expect(normalizeIpAddress('   '), equals(''));
+    });
+
+    test('non-mapped IPv6 containing ffff is unchanged', () {
+      expect(normalizeIpAddress('2001:ffff::1'), equals('2001:ffff::1'));
     });
   });
 
@@ -62,6 +72,21 @@ void main() {
           await gatekeeper.unacceptAddressOnTCPPort('2001:db8::1', 22), isTrue);
       expect(await gatekeeper.listAcceptedAddressesOnTCPPorts(),
           equals({(address: '1.2.3.4', port: 22)}));
+    });
+  });
+
+  group('Uint8ListExtension.merge', () {
+    test('merges two buffers', () {
+      var a = Uint8List.fromList([1, 2, 3]);
+      var b = Uint8List.fromList([4, 5]);
+      expect(a.merge(b), equals(Uint8List.fromList([1, 2, 3, 4, 5])));
+    });
+
+    test('merging with empty returns the other side', () {
+      var a = Uint8List.fromList([1, 2, 3]);
+      var empty = Uint8List(0);
+      expect(a.merge(empty), equals(a));
+      expect(empty.merge(a), equals(a));
     });
   });
 }

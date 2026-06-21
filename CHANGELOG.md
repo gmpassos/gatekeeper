@@ -17,7 +17,12 @@
   - Added `help` / `?` command listing all commands and their usage.
   - `connect` accepts an optional `addressType` to force the IP family;
     added `myIPs()` returning both families' addresses.
+  - Fixed `list accepts` parsing to split on the last `:` so IPv6 addresses
+    (which contain `:`) are no longer dropped.
 - `utils`: added `normalizeIpAddress` and `isIPv6Address` helpers.
+- Tests: added IPv6/dual-stack coverage (`normalizeIpAddress`/`isIPv6Address`,
+  `iptables` argument validation, and an end-to-end `myIPs`/`accept .`/
+  `unaccept .` dual-stack client/server test).
 
 ## 1.0.12
 
