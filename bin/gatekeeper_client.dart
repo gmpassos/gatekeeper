@@ -51,6 +51,7 @@ void main(List<String> argsOrig) async {
       '-- Logged to `GatekeeperServer` @ $host:$port [${login.serverVersion}]');
 
   print('------------------------------------------------------');
+  print('Type `help` or `?` to list the available commands.');
 
   while (client.isConnected) {
     stdout.write('> ');

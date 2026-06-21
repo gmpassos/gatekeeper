@@ -34,7 +34,8 @@ class GatekeeperServer {
   /// The port the server listens on for incoming connections.
   final int listenPort;
 
-  /// The address the server binds to. Defaults to [InternetAddress.anyIPv4] if not specified.
+  /// The address the server binds to. Defaults to [InternetAddress.anyIPv6]
+  /// (dual-stack, see [_startImpl]) if not specified.
   final Object address;
 
   /// The maximum number of consecutive login errors allowed before
@@ -52,7 +53,7 @@ class GatekeeperServer {
   /// - [gatekeeper]: the [Gatekeeper] instance.
   /// - [accessKey]: the access key for login.
   /// - [listenPort]: the port to listen for connections. NO default port for security purpose.
-  /// - [address]: Optional addresses to bind. See [ServerSocket.bind]. Default: [InternetAddress.anyIPv4]
+  /// - [address]: Optional addresses to bind. See [ServerSocket.bind]. Default: [InternetAddress.anyIPv6] (dual-stack: accepts both IPv4 and IPv6 connections)
   /// - [loginErrorLimit]: The limit of login errors to block a [Socket]. Default: 3 ; Minimal: 3
   /// - [blockingTime]: The [Socket] blocking time. Default: 10min
   GatekeeperServer(this.gatekeeper,
@@ -62,7 +63,7 @@ class GatekeeperServer {
       int? loginErrorLimit,
       Duration? blockingTime,
       this.verbose = false})
-      : address = address ?? InternetAddress.anyIPv4,
+      : address = address ?? InternetAddress.anyIPv6,
         loginErrorLimit = normalizeLoginErrorLimit(loginErrorLimit),
         blockingTime = normalizeBlockingTime(blockingTime) {
     if (accessKey.length < 32) {
@@ -125,7 +126,11 @@ class GatekeeperServer {
   }
 
   Future<bool> _startImpl() async {
-    var server = _server = await ServerSocket.bind(address, listenPort);
+    // `v6Only: false` makes an IPv6 bind dual-stack, so a single socket
+    // accepts both IPv6 and IPv4 (the latter as IPv4-mapped) connections.
+    // It is ignored when binding an IPv4 address.
+    var server =
+        _server = await ServerSocket.bind(address, listenPort, v6Only: false);
     server.listen(_onAcceptSocket);
     return true;
   }
@@ -214,7 +219,9 @@ class _SocketHandler {
   StreamSubscription<Uint8List>? _socketSubscription;
 
   _SocketHandler(this.socket, this.server) {
-    remoteAddress = socket.remoteAddress.address;
+    // Normalize IPv4-mapped IPv6 (`::ffff:1.2.3.4`) to plain IPv4 so the
+    // address handed to the firewall driver targets the correct family.
+    remoteAddress = normalizeIpAddress(socket.remoteAddress.address);
 
     if (server._isSocketAddressBlocked(this)) {
       close();

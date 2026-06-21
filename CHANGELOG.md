@@ -1,3 +1,29 @@
+## 1.1.0
+
+- IPv6 support (dual-stack):
+  - `GatekeeperServer`: now binds `InternetAddress.anyIPv6` with `v6Only: false`
+    by default, accepting both IPv4 and IPv6 connections. IPv4-mapped IPv6
+    remote addresses (`::ffff:1.2.3.4`) are normalized to plain IPv4.
+  - `GatekeeperIpTables`: manages IPv6 rules via `ip6tables` (optional; skipped
+    gracefully when not installed):
+    - `accept`/`unaccept` select `iptables` or `ip6tables` from the address
+      family.
+    - `block`/`unblock` apply to both `iptables` and `ip6tables`.
+    - Listings merge results from both families.
+- `gatekeeper_client`:
+  - `accept . <port>` now whitelists **both** the client's IPv4 and IPv6
+    addresses (the missing family is discovered via an auxiliary connection),
+    and prints the concrete IP(s) accepted. `unaccept .` removes both.
+  - Added `help` / `?` command listing all commands and their usage.
+  - `connect` accepts an optional `addressType` to force the IP family;
+    added `myIPs()` returning both families' addresses.
+  - Fixed `list accepts` parsing to split on the last `:` so IPv6 addresses
+    (which contain `:`) are no longer dropped.
+- `utils`: added `normalizeIpAddress` and `isIPv6Address` helpers.
+- Tests: added IPv6/dual-stack coverage (`normalizeIpAddress`/`isIPv6Address`,
+  `iptables` argument validation, and an end-to-end `myIPs`/`accept .`/
+  `unaccept .` dual-stack client/server test).
+
 ## 1.0.12
 
 - `bin/gatekeeper_client.dart`:
