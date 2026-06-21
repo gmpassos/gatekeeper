@@ -50,12 +50,29 @@ class GatekeeperClient {
 
   /// Connects to the Gatekeeper server.
   ///
+  /// - [addressType]: If provided, resolves [host] to this IP family
+  ///   ([InternetAddressType.IPv4] or [InternetAddressType.IPv6]) and connects
+  ///   to the resolved address, forcing the connection over that family. If
+  ///   `null` (default), connects using the platform's default resolution.
+  ///
   /// Returns a [Future] that completes with `true` if the connection was successful,
   /// or `false` if already connected.
-  Future<bool> connect() async {
+  Future<bool> connect({InternetAddressType? addressType}) async {
     if (isConnected) return false;
-    var socket = _socket = await Socket.connect(host, port);
 
+    Socket socket;
+    if (addressType != null) {
+      var addresses = await InternetAddress.lookup(host, type: addressType);
+      if (addresses.isEmpty) {
+        throw SocketException("No $addressType address for host `$host`",
+            address: null);
+      }
+      socket = await Socket.connect(addresses.first, port);
+    } else {
+      socket = await Socket.connect(host, port);
+    }
+
+    _socket = socket;
     socket.listen(_onData, cancelOnError: true, onDone: _onClose);
 
     return true;
@@ -354,7 +371,70 @@ class GatekeeperClient {
     var match = RegExp(r'ip:\s+(\S+)').firstMatch(response);
     var ip = match?.group(1);
 
-    return ip;
+    return ip != null ? normalizeIpAddress(ip) : null;
+  }
+
+  /// Retrieves both the IPv4 and IPv6 addresses of this client as seen by the
+  /// remote server.
+  ///
+  /// The current connection only reveals the address of the family it was
+  /// established over. To discover the other family, an auxiliary connection
+  /// is opened (forced to that family, authenticated with the same access key)
+  /// and queried with [myIP].
+  ///
+  /// A slot is `null` when that family could not be determined (e.g. the server
+  /// is not reachable over it, or [host] is a literal address of the other
+  /// family).
+  Future<({String? ipv4, String? ipv6})> myIPs() async {
+    String? ipv4;
+    String? ipv6;
+
+    // Current connection: classify its server-visible address by family.
+    var currentType = _socket?.remoteAddress.type;
+    var currentIp = await myIP();
+    if (currentIp != null) {
+      if (isIPv6Address(currentIp)) {
+        ipv6 = currentIp;
+      } else {
+        ipv4 = currentIp;
+      }
+    }
+
+    // Discover the missing family via an auxiliary connection.
+    Future<String?> discover(InternetAddressType type) async {
+      final accessKey = _accessKey;
+      if (accessKey == null) return null;
+
+      final auxClient =
+          GatekeeperClient(host, port, secure: secure, verbose: verbose);
+      try {
+        var connected = await auxClient.connect(addressType: type);
+        if (!connected) return null;
+
+        var login = await auxClient.login(accessKey);
+        if (!login.ok) return null;
+
+        return await auxClient.myIP();
+      } catch (_) {
+        return null;
+      } finally {
+        auxClient.close();
+      }
+    }
+
+    if (ipv4 == null && currentType != InternetAddressType.IPv4) {
+      try {
+        ipv4 = await discover(InternetAddressType.IPv4);
+      } catch (_) {}
+    }
+
+    if (ipv6 == null && currentType != InternetAddressType.IPv6) {
+      try {
+        ipv6 = await discover(InternetAddressType.IPv6);
+      } catch (_) {}
+    }
+
+    return (ipv4: ipv4, ipv6: ipv6);
   }
 
   /// Processes a command entered by the user.
@@ -449,6 +529,11 @@ class GatekeeperClient {
 
       case 'accept':
         {
+          if (parts.length < 3) {
+            print('** Usage: accept <address|.> <port>');
+            return false;
+          }
+
           var address = parts[1].trim();
           if (address.isEmpty) {
             print('** Empty address');
@@ -461,6 +546,32 @@ class GatekeeperClient {
             return false;
           }
 
+          // `.` means "this client": whitelist both its IPv4 and IPv6 address.
+          if (address == '.') {
+            var ips = await myIPs();
+            var resolved = <String>[
+              if (ips.ipv4 != null) ips.ipv4!,
+              if (ips.ipv6 != null) ips.ipv6!,
+            ];
+
+            if (resolved.isEmpty) {
+              print('** Could not resolve this client\'s IP address(es).');
+              return false;
+            }
+
+            var accepted = <String>[];
+            for (var ip in resolved) {
+              var ok = await acceptAddressOnTCPPort(ip, port);
+              var family = isIPv6Address(ip) ? 'IPv6' : 'IPv4';
+              print('-- Accepted $family `$ip` on port $port: $ok');
+              if (ok) accepted.add(ip);
+            }
+
+            print('-- Accepted IPs on port $port: '
+                '${accepted.isEmpty ? '(none)' : accepted.join(', ')}');
+            return true;
+          }
+
           var accepted = await acceptAddressOnTCPPort(address, port);
           print('-- Accepted address `$address` on port $port: $accepted');
           return true;
@@ -468,6 +579,11 @@ class GatekeeperClient {
 
       case 'unaccept':
         {
+          if (parts.length < 2) {
+            print('** Usage: unaccept <address|.> [port]');
+            return false;
+          }
+
           var address = parts[1].trim();
           if (address.isEmpty) {
             print('** Empty address');
@@ -475,6 +591,27 @@ class GatekeeperClient {
           }
 
           var port = parts.length > 2 ? int.tryParse(parts[2].trim()) : null;
+
+          // `.` means "this client": remove both its IPv4 and IPv6 address.
+          if (address == '.') {
+            var ips = await myIPs();
+            var resolved = <String>[
+              if (ips.ipv4 != null) ips.ipv4!,
+              if (ips.ipv6 != null) ips.ipv6!,
+            ];
+
+            if (resolved.isEmpty) {
+              print('** Could not resolve this client\'s IP address(es).');
+              return false;
+            }
+
+            for (var ip in resolved) {
+              var ok = await unacceptAddressOnTCPPort(ip, port);
+              var family = isIPv6Address(ip) ? 'IPv6' : 'IPv4';
+              print('-- Unaccepted $family `$ip` on port ${port ?? '*'}: $ok');
+            }
+            return true;
+          }
 
           var unaccepted = await unacceptAddressOnTCPPort(address, port);
           print(
@@ -504,6 +641,13 @@ class GatekeeperClient {
           return false;
         }
 
+      case 'help':
+      case '?':
+        {
+          printCommandsHelp();
+          return true;
+        }
+
       case 'exit':
         {
           var ok = await disconnect();
@@ -515,9 +659,29 @@ class GatekeeperClient {
       default:
         {
           print('** Unknown command: `$cmd`');
+          print('   Type `help` or `?` to list the available commands.');
           return false;
         }
     }
+  }
+
+  /// Prints the list of available REPL commands and their usage.
+  static void printCommandsHelp() {
+    print('Available commands:');
+    print('  list | ls | l [ports|accepts|all]  '
+        'List blocked ports and/or accepted addresses (default: all).');
+    print(
+        '  block <port>                       Block a TCP port (IPv4 + IPv6).');
+    print('  unblock <port>                     '
+        'Unblock a TCP port (IPv4 + IPv6).');
+    print('  accept <address|.> <port>          '
+        'Accept an address on a port. `.` = this client (both IPv4 and IPv6).');
+    print('  unaccept <address|.> [port]        '
+        'Remove an accepted address (all ports if omitted). `.` = this client.');
+    print('  myip | my ip                       '
+        'Show this client\'s IP as seen by the server.');
+    print('  help | ?                           Show this help.');
+    print('  exit                               Disconnect and quit.');
   }
 
   /// Closes the connection to the server.

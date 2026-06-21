@@ -1,9 +1,34 @@
 import 'dart:io';
 
 import 'gatekeeper_base.dart';
+import 'utils.dart';
+
+/// IPv4 firewall binary.
+const String _binIpTables = 'iptables';
+
+/// IPv6 firewall binary.
+const String _binIp6Tables = 'ip6tables';
+
+/// Matches an `ACCEPT` rule line and captures the source address.
+///
+/// Tolerates both `iptables` and `ip6tables -L -n -v` output (the `opt`
+/// column shown by `iptables` as `--` is optional, as some `ip6tables`
+/// versions omit it).
+final RegExp _regExpAcceptAddress =
+    RegExp(r'ACCEPT\s+(?:tcp|6|4)\s+(?:--\s+)?\*\s+\*\s+(\S+)');
+
+/// Matches the destination port (`dpt:<port>`) of a rule line.
+final RegExp _regExpPort = RegExp(r'dpt:(\d\d+)');
 
 /// The [GatekeeperIpTables] class is a concrete implementation of [GatekeeperDriver]
-/// that uses `iptables` or a similar utility to manage TCP ports on a system.
+/// that uses `iptables`/`ip6tables` or a similar utility to manage TCP ports on a system.
+///
+/// IPv4 rules are managed with `iptables` and IPv6 rules with `ip6tables`.
+/// The correct binary is selected from the address family for address-based
+/// operations ([acceptAddressOnTCPPort]/[unacceptAddressOnTCPPort]), while
+/// port-based operations ([blockTCPPort]/[unblockTCPPort]) and listings span
+/// both families. `ip6tables` is optional: when it is not installed, IPv6
+/// operations are skipped gracefully.
 ///
 /// Example usage:
 /// ```dart
@@ -30,6 +55,39 @@ class GatekeeperIpTables extends GatekeeperDriver {
     } catch (e) {
       throw Exception('Failed to resolve binary path: $e');
     }
+  }
+
+  /// Resolves [binaryCommand] like [resolveBinaryPathCached], but returns
+  /// `null` instead of throwing when the binary is not available. Used for the
+  /// optional `ip6tables` binary.
+  Future<String?> _resolveBinaryPathOrNull(String binaryCommand) async {
+    try {
+      var path = await resolveBinaryPathCached(binaryCommand);
+      return path.isNotEmpty ? path : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Returns the firewall binary path for the given [address] family
+  /// (`ip6tables` for IPv6, `iptables` otherwise), or `null` if that binary is
+  /// not available on this system.
+  Future<String?> _resolveBinaryPathForAddress(String address) =>
+      _resolveBinaryPathOrNull(
+          isIPv6Address(address) ? _binIp6Tables : _binIpTables);
+
+  /// Returns the available firewall binary paths: `iptables` (required) plus
+  /// `ip6tables` when installed. Throws if `iptables` is missing.
+  Future<List<String>> _resolveFirewallBinaries() async {
+    final bins = <String>[];
+
+    final ipTables = await resolveBinaryPathCached(_binIpTables);
+    if (ipTables.isNotEmpty) bins.add(ipTables);
+
+    final ip6Tables = await _resolveBinaryPathOrNull(_binIp6Tables);
+    if (ip6Tables != null) bins.add(ip6Tables);
+
+    return bins;
   }
 
   @override
@@ -63,30 +121,29 @@ class GatekeeperIpTables extends GatekeeperDriver {
   @override
   Future<Set<int>> listBlockedTCPPorts(
       {bool sudo = false, Set<int>? allowedPorts}) async {
-    final iptablesBin = await resolveBinaryPathCached('iptables');
-    final iptablesArgs = <String>['-L', 'INPUT', '-n', '-v'];
-
-    var output = await runCommand(
-      iptablesBin,
-      iptablesArgs,
-      sudo: sudo,
-      expectedExitCode: 0,
-    );
-
-    if (output == null || output.isEmpty) return {};
-
-    final regExpPort = RegExp(r'dpt:(\d\d+)');
+    final bins = await _resolveFirewallBinaries();
 
     final blockedPorts = <int>{};
 
-    for (final line in output.split('\n')) {
-      if (line.contains('DROP') || line.contains('REJECT')) {
-        final match = regExpPort.firstMatch(line);
-        if (match != null) {
-          var g1 = match.group(1)!;
-          var p = int.tryParse(g1.trim());
-          if (p != null && p >= 10) {
-            blockedPorts.add(p);
+    for (final bin in bins) {
+      var output = await runCommand(
+        bin,
+        <String>['-L', 'INPUT', '-n', '-v'],
+        sudo: sudo,
+        expectedExitCode: 0,
+      );
+
+      if (output == null || output.isEmpty) continue;
+
+      for (final line in output.split('\n')) {
+        if (line.contains('DROP') || line.contains('REJECT')) {
+          final match = _regExpPort.firstMatch(line);
+          if (match != null) {
+            var g1 = match.group(1)!;
+            var p = int.tryParse(g1.trim());
+            if (p != null && p >= 10) {
+              blockedPorts.add(p);
+            }
           }
         }
       }
@@ -111,26 +168,23 @@ class GatekeeperIpTables extends GatekeeperDriver {
       return false;
     }
 
-    final iptablesBin = await resolveBinaryPathCached('iptables');
-    final iptablesArgs = <String>[
-      '-A',
-      'INPUT',
-      '-p',
-      'tcp',
-      '--dport',
-      '$port',
-      '-j',
-      'DROP',
-    ];
+    // Block on every available family so the port is actually closed for both
+    // IPv4 and IPv6 traffic.
+    final bins = await _resolveFirewallBinaries();
 
-    var output = await runCommand(
-      iptablesBin,
-      iptablesArgs,
-      sudo: sudo,
-      expectedExitCode: 0,
-    );
+    var allOk = true;
+    for (final bin in bins) {
+      var output = await runCommand(
+        bin,
+        <String>['-A', 'INPUT', '-p', 'tcp', '--dport', '$port', '-j', 'DROP'],
+        sudo: sudo,
+        expectedExitCode: 0,
+      );
 
-    if (output == null) {
+      if (output == null) allOk = false;
+    }
+
+    if (!allOk) {
       return false;
     }
 
@@ -151,26 +205,21 @@ class GatekeeperIpTables extends GatekeeperDriver {
       return false;
     }
 
-    final iptablesBin = await resolveBinaryPathCached('iptables');
-    final iptablesArgs = <String>[
-      '-D',
-      'INPUT',
-      '-p',
-      'tcp',
-      '--dport',
-      '$port',
-      '-j',
-      'DROP',
-    ];
+    final bins = await _resolveFirewallBinaries();
 
-    var output = await runCommand(
-      iptablesBin,
-      iptablesArgs,
-      sudo: sudo,
-      expectedExitCode: 0,
-    );
+    var allOk = true;
+    for (final bin in bins) {
+      var output = await runCommand(
+        bin,
+        <String>['-D', 'INPUT', '-p', 'tcp', '--dport', '$port', '-j', 'DROP'],
+        sudo: sudo,
+        expectedExitCode: 0,
+      );
 
-    if (output == null) {
+      if (output == null) allOk = false;
+    }
+
+    if (!allOk) {
       return false;
     }
 
@@ -182,34 +231,31 @@ class GatekeeperIpTables extends GatekeeperDriver {
   @override
   Future<Set<(String, int)>> listAcceptedAddressesOnTCPPorts(
       {bool sudo = false, Set<int>? allowedPorts}) async {
-    final iptablesBin = await resolveBinaryPathCached('iptables');
-    final iptablesArgs = <String>['-L', 'INPUT', '-n', '-v'];
-
-    var output = await runCommand(
-      iptablesBin,
-      iptablesArgs,
-      sudo: sudo,
-      expectedExitCode: 0,
-    );
-
-    if (output == null || output.isEmpty) return {};
-
-    final regExpAddress =
-        RegExp(r'ACCEPT\s+(?:tcp|6|4)\s+--\s+\*\s+\*\s+(\S+)');
-    final regExpPort = RegExp(r'dpt:(\d\d+)');
+    final bins = await _resolveFirewallBinaries();
 
     final accepts = <(String, int)>{};
 
-    for (final line in output.split('\n')) {
-      if (line.contains('ACCEPT')) {
-        final matchAddress = regExpAddress.firstMatch(line);
-        final matchPort = regExpPort.firstMatch(line);
-        if (matchAddress != null && matchPort != null) {
-          var address = matchAddress.group(1)!;
-          var gPort = matchPort.group(1)!;
-          var port = int.tryParse(gPort.trim());
-          if (address.isNotEmpty && port != null && port >= 10) {
-            accepts.add((address, port));
+    for (final bin in bins) {
+      var output = await runCommand(
+        bin,
+        <String>['-L', 'INPUT', '-n', '-v'],
+        sudo: sudo,
+        expectedExitCode: 0,
+      );
+
+      if (output == null || output.isEmpty) continue;
+
+      for (final line in output.split('\n')) {
+        if (line.contains('ACCEPT')) {
+          final matchAddress = _regExpAcceptAddress.firstMatch(line);
+          final matchPort = _regExpPort.firstMatch(line);
+          if (matchAddress != null && matchPort != null) {
+            var address = normalizeIpAddress(matchAddress.group(1)!);
+            var gPort = matchPort.group(1)!;
+            var port = int.tryParse(gPort.trim());
+            if (address.isNotEmpty && port != null && port >= 10) {
+              accepts.add((address, port));
+            }
           }
         }
       }
@@ -235,23 +281,27 @@ class GatekeeperIpTables extends GatekeeperDriver {
       return false;
     }
 
-    final iptablesBin = await resolveBinaryPathCached('iptables');
-    final iptablesArgs = <String>[
-      '-I',
-      'INPUT',
-      '-p',
-      'tcp',
-      '--dport',
-      '$port',
-      '-s',
-      address,
-      '-j',
-      'ACCEPT',
-    ];
+    // Select `iptables` or `ip6tables` from the address family.
+    final bin = await _resolveBinaryPathForAddress(address);
+    if (bin == null) {
+      // IPv6 address requested but `ip6tables` is not available.
+      return false;
+    }
 
     var output = await runCommand(
-      iptablesBin,
-      iptablesArgs,
+      bin,
+      <String>[
+        '-I',
+        'INPUT',
+        '-p',
+        'tcp',
+        '--dport',
+        '$port',
+        '-s',
+        address,
+        '-j',
+        'ACCEPT',
+      ],
       sudo: sudo,
       expectedExitCode: 0,
     );
@@ -273,30 +323,33 @@ class GatekeeperIpTables extends GatekeeperDriver {
       required bool allowAllPorts}) async {
     address = _checkAddress(address);
 
-    final iptablesBin = await resolveBinaryPathCached('iptables');
-    final iptablesArgs = <String>['-L', 'INPUT', '-n', '-v', '--line-numbers'];
+    // The address family determines which firewall table holds the rule.
+    final bin = await _resolveBinaryPathForAddress(address);
+    if (bin == null) {
+      return false;
+    }
 
     var output = await runCommand(
-      iptablesBin,
-      iptablesArgs,
+      bin,
+      <String>['-L', 'INPUT', '-n', '-v', '--line-numbers'],
       sudo: sudo,
       expectedExitCode: 0,
     );
 
     if (output == null || output.isEmpty) return false;
 
-    final regExpAddress =
-        RegExp(r'ACCEPT\s+(?:tcp|6|4)\s+--\s+\*\s+\*\s+(\S+)');
-    final regExpPort = RegExp(r'dpt:(\d\d+)');
-
     var anyCmdOK = false;
 
-    for (final line in output.split('\n')) {
+    // Iterate in reverse so deleting a rule by line number does not shift the
+    // numbers of rules still pending deletion.
+    final lines = output.split('\n').reversed;
+
+    for (final line in lines) {
       if (line.contains('ACCEPT')) {
-        final matchAddress = regExpAddress.firstMatch(line);
-        final matchPort = regExpPort.firstMatch(line);
+        final matchAddress = _regExpAcceptAddress.firstMatch(line);
+        final matchPort = _regExpPort.firstMatch(line);
         if (matchAddress != null && matchPort != null) {
-          var a = matchAddress.group(1)!;
+          var a = normalizeIpAddress(matchAddress.group(1)!);
           var g1 = matchPort.group(1)!;
           var p = int.tryParse(g1.trim());
 
@@ -308,7 +361,7 @@ class GatekeeperIpTables extends GatekeeperDriver {
               final iptablesDelArgs = <String>['-D', 'INPUT', '$n'];
 
               var output = await runCommand(
-                iptablesBin,
+                bin,
                 iptablesDelArgs,
                 sudo: sudo,
                 expectedExitCode: 0,
@@ -342,7 +395,7 @@ class GatekeeperIpTables extends GatekeeperDriver {
 
   @override
   Future<bool> resolve() async {
-    final iptablesBin = await resolveBinaryPathCached('iptables');
+    final iptablesBin = await resolveBinaryPathCached(_binIpTables);
     return iptablesBin.isNotEmpty;
   }
 
@@ -368,7 +421,9 @@ String _checkAddress(String address) {
 
 String? _normalizeAddress(String? address) {
   if (address == null) return null;
-  address = address.trim();
+  // Collapse IPv4-mapped IPv6 (`::ffff:1.2.3.4`) to plain IPv4 so it targets
+  // the IPv4 table.
+  address = normalizeIpAddress(address);
   if (address.isEmpty) return null;
 
   // If has any invalid character:
